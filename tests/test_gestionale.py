@@ -293,3 +293,21 @@ def test_aggiornamento_da_database_vecchio(app):
         assert p.movimenti.one().tipo == "iniziale"
         s = db.session.get(OrdineSpesa, 1)
         assert s.fornitore.nome == "Ditta Verdi" and s.righe[0].quantita_ricevuta == 3
+
+
+def test_ip_reale_dietro_proxy(tmp_path):
+    """Con TRUST_PROXY il blocco login usa l'IP vero: un utente non blocca tutti gli altri."""
+    from app import create_app
+    app = create_app({"TESTING": True, "TRUST_PROXY": 1,
+                      "SQLALCHEMY_DATABASE_URI": f"sqlite:///{tmp_path / 'p.db'}"})
+    from app.utils import limitatore_login
+    limitatore_login._falliti.clear()
+    c = app.test_client()
+    c.get("/login", headers={"X-Forwarded-For": "203.0.113.7"})
+    with c.session_transaction() as s:
+        token = s.get("_csrf")
+    for _ in range(5):
+        c.post("/login", data={"_csrf": token, "email": "x@y.it", "password": "no"},
+               headers={"X-Forwarded-For": "203.0.113.7"})
+    assert limitatore_login.bloccato("ip:203.0.113.7")
+    assert not limitatore_login.bloccato("ip:127.0.0.1")

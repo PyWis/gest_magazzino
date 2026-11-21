@@ -41,6 +41,8 @@ generata una e salvata in `instance/secret_key`). Per usare un altro database im
 | `DATABASE_URL` | Database diverso da SQLite |
 | `MAIL_SERVER`, `MAIL_PORT`, `MAIL_USERNAME`, `MAIL_PASSWORD`, `MAIL_FROM` | Server email per avvisare i docenti quando un ordine cambia stato. Se `MAIL_SERVER` è vuoto le email sono disattivate |
 | `MAIL_USE_TLS` / `MAIL_USE_SSL` | Tipo di connessione al server email (predefinito: STARTTLS) |
+| `TRUST_PROXY` | `1` se il programma sta dietro un proxy (nginx, PythonAnywhere): serve a leggere l'IP vero dei visitatori |
+| `COOKIE_SICURI` | `1` quando il sito è in HTTPS: il cookie di sessione viaggia solo cifrato |
 
 Esempio con Gmail / Google Workspace (serve una «password per le app»):
 `MAIL_SERVER=smtp.gmail.com MAIL_PORT=587 MAIL_USERNAME=magazzino@scuola.it MAIL_PASSWORD=...`
