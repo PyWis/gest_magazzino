@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% from "_macros.html" import badge %}
+{% block title %}Ordine di spesa #{{ spesa.id }}{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-3">
+  <div>
+    <h1 class="h3 mb-1">Ordine di spesa #{{ spesa.id }} {{ badge(spesa) }}</h1>
+    <div class="text-muted">
+      Creato il {{ spesa.creato_il|data }} da {{ spesa.creato_da.nome_completo }}
+      {% if spesa.inviato_il %} · inviato il {{ spesa.inviato_il|data }}{% endif %}
+      {% if spesa.ricevuto_il %} · ricevuto il {{ spesa.ricevuto_il|data }}{% endif %}
+    </div>
+  </div>
+  <div class="d-flex flex-wrap gap-2 d-print-none">
+    <button class="btn btn-outline-secondary" onclick="window.print()"><i class="bi bi-printer"></i> Stampa</button>
+    {% if spesa.modificabile %}
+      <a class="btn btn-outline-primary" href="{{ url_for('spesa.modifica', sid=spesa.id) }}"><i class="bi bi-pencil"></i> Modifica</a>
+    {% endif %}
+    <form method="post" action="{{ url_for('spesa.cambia_stato', sid=spesa.id) }}" class="d-flex gap-2">
+      <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+      {% if spesa.stato == StatoSpesa.BOZZA %}
+        <button class="btn btn-primary" name="azione" value="invia">Segna come inviato</button>
+      {% endif %}
+      {% if spesa.stato in [StatoSpesa.BOZZA, StatoSpesa.INVIATO] %}
+        <button class="btn btn-success" name="azione" value="ricevi"
+                onclick="return confirm('Confermi di aver ricevuto la merce? Le quantità verranno caricate in magazzino.')">
+          <i class="bi bi-box-arrow-in-down"></i> Merce ricevuta</button>
+        <button class="btn btn-outline-danger" name="azione" value="annulla"
+                onclick="return confirm('Annullare questo ordine di spesa?')">Annulla</button>
+      {% endif %}
+    </form>
+  </div>
+</div>
+
+<div class="card mb-3"><div class="card-body">
+  <div class="row">
+    <div class="col-md-6"><strong>Fornitore:</strong> {{ spesa.fornitore or '—' }}</div>
+    <div class="col-md-6"><strong>Note:</strong> {{ spesa.note or '—' }}</div>
+  </div>
+  {% if spesa.ordine_origine %}
+    <div class="mt-2 d-print-none">Per l'<a href="{{ url_for('ordini.dettaglio', oid=spesa.ordine_origine_id) }}">ordine #{{ spesa.ordine_origine_id }}</a> di {{ spesa.ordine_origine.docente.nome_completo }}</div>
+  {% endif %}
+</div></div>
+
+<div class="card"><div class="card-body p-0">
+<table class="table mb-0">
+  <thead><tr><th>Prodotto</th><th class="text-end">Quantità</th><th class="text-end">Prezzo unit.</th><th class="text-end">Subtotale</th></tr></thead>
+  <tbody>
+  {% for r in spesa.righe %}
+    <tr>
+      <td>{{ r.prodotto.nome }}</td>
+      <td class="text-end">{{ r.quantita|qta }} {{ r.prodotto.unita.simbolo }}</td>
+      <td class="text-end">{{ r.prezzo_unitario|euro }}</td>
+      <td class="text-end">{{ r.subtotale|euro }}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+  {% if spesa.totale %}
+  <tfoot><tr><th colspan="3" class="text-end">Totale</th><th class="text-end">{{ spesa.totale|euro }}</th></tr></tfoot>
+  {% endif %}
+</table>
+</div></div>
+<div class="mt-3 d-print-none"><a href="{{ url_for('spesa.index') }}">&larr; Torna agli ordini di spesa</a></div>
+{% endblock %}

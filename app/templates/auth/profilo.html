@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}Cambia password{% endblock %}
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-md-6">
+    <h1 class="h3 mb-3">Il mio profilo</h1>
+    <div class="card mb-3"><div class="card-body">
+      <div><strong>{{ current_user.nome_completo }}</strong> — {{ current_user.ruolo_label }}</div>
+      <div class="text-muted">{{ current_user.email }}</div>
+    </div></div>
+    <div class="card"><div class="card-body">
+      <h2 class="h5">Cambia password</h2>
+      <form method="post">
+        <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+        <div class="mb-3">
+          <label class="form-label">Password attuale</label>
+          <input class="form-control" type="password" name="password_attuale" required>
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Nuova password</label>
+          <input class="form-control" type="password" name="password" minlength="8" required>
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Ripeti nuova password</label>
+          <input class="form-control" type="password" name="password2" minlength="8" required>
+        </div>
+        <button class="btn btn-primary">Aggiorna password</button>
+      </form>
+    </div></div>
+  </div>
+</div>
+{% endblock %}

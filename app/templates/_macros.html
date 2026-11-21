@@ -1,0 +1,11 @@
+{% macro badge(obj) -%}
+  <span class="badge text-bg-{{ obj.stato_colore }}">{{ obj.stato_label }}</span>
+{%- endmacro %}
+
+{% macro csrf() -%}
+  <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+{%- endmacro %}
+
+{% macro qta(valore, unita) -%}
+  {{ valore|qta }} <small class="text-muted">{{ unita.simbolo }}</small>
+{%- endmacro %}

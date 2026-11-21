@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+{% block title %}Nuovo ordine{% endblock %}
+{% block content %}
+<h1 class="h3 mb-1">Nuovo ordine</h1>
+<p class="text-muted">Scegli gli articoli dal magazzino. Se quello che ti serve non c'è, scegli <strong>«Altro…»</strong> e descrivilo.</p>
+
+<form method="post" id="form-ordine">
+  <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+  <div class="card mb-3"><div class="card-body">
+    <div id="righe"></div>
+    <button type="button" class="btn btn-outline-primary btn-sm" id="aggiungi"><i class="bi bi-plus"></i> Aggiungi articolo</button>
+  </div></div>
+
+  <div class="card mb-3"><div class="card-body">
+    <label class="form-label" for="note">Note per il magazzino (facoltative)</label>
+    <textarea class="form-control" id="note" name="note" rows="2" placeholder="es. serve entro venerdì per il laboratorio di chimica">{{ note }}</textarea>
+  </div></div>
+
+  <button class="btn btn-primary btn-lg"><i class="bi bi-send"></i> Invia ordine</button>
+  <a class="btn btn-link" href="{{ url_for('ordini.miei') }}">Annulla</a>
+</form>
+
+<template id="tpl-riga">
+  <div class="riga-ordine row g-2 align-items-end border-bottom pb-3 mb-3">
+    <div class="col-md-5">
+      <label class="form-label small">Articolo</label>
+      <select class="form-select sel-prodotto" name="prodotto_id">
+        <option value="">— scegli un articolo —</option>
+        {% for p in prodotti %}
+          <option value="{{ p.id }}" data-simbolo="{{ p.unita.simbolo }}">
+            {{ p.nome }}{% if p.categoria %} · {{ p.categoria }}{% endif %}
+            {% if p.giacenza <= 0 %}(esaurito){% else %}(disp. {{ p.giacenza|qta }} {{ p.unita.simbolo }}){% endif %}
+          </option>
+        {% endfor %}
+        <option value="altro">Altro… (non presente in magazzino)</option>
+      </select>
+    </div>
+    <div class="col-md-3">
+      <label class="form-label small">Quantità</label>
+      <div class="input-group">
+        <input class="form-control inp-qta" name="quantita" inputmode="decimal" placeholder="0">
+        <span class="input-group-text lbl-unita">—</span>
+      </div>
+    </div>
+    <div class="col-md-1 text-end">
+      <button type="button" class="btn btn-outline-danger rimuovi" title="Rimuovi"><i class="bi bi-trash"></i></button>
+    </div>
+    <div class="col-md-8 campo-altro">
+      <label class="form-label small">Descrivi cosa ti serve</label>
+      <input class="form-control inp-descrizione" name="descrizione" maxlength="255" placeholder="es. Alcol etilico denaturato 90°">
+    </div>
+    <div class="col-md-3 campo-altro">
+      <label class="form-label small">Unità di misura</label>
+      <select class="form-select sel-unita" name="unita_id">
+        <option value="">— unità —</option>
+        {% for u in unita %}<option value="{{ u.id }}" data-simbolo="{{ u.simbolo }}">{{ u.nome }} ({{ u.simbolo }})</option>{% endfor %}
+      </select>
+    </div>
+  </div>
+</template>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  const contenitore = document.getElementById('righe');
+  const tpl = document.getElementById('tpl-riga');
+  const precedenti = {{ righe_input|tojson }};
+
+  function aggiornaRiga(riga) {
+    const sel = riga.querySelector('.sel-prodotto');
+    const altro = sel.value === 'altro';
+    riga.classList.toggle('altro', altro);
+    let simbolo = '—';
+    if (altro) {
+      const u = riga.querySelector('.sel-unita');
+      if (u.value) simbolo = u.selectedOptions[0].dataset.simbolo;
+    } else if (sel.value) {
+      simbolo = sel.selectedOptions[0].dataset.simbolo;
+    }
+    riga.querySelector('.lbl-unita').textContent = simbolo;
+  }
+
+  function aggiungi(dati) {
+    const riga = tpl.content.firstElementChild.cloneNode(true);
+    if (dati) {
+      riga.querySelector('.sel-prodotto').value = dati.prodotto_id || '';
+      riga.querySelector('.inp-qta').value = dati.quantita || '';
+      riga.querySelector('.inp-descrizione').value = dati.descrizione || '';
+      riga.querySelector('.sel-unita').value = dati.unita_id || '';
+    }
+    riga.querySelector('.sel-prodotto').addEventListener('change', () => aggiornaRiga(riga));
+    riga.querySelector('.sel-unita').addEventListener('change', () => aggiornaRiga(riga));
+    riga.querySelector('.rimuovi').addEventListener('click', () => {
+      riga.remove();
+      if (!contenitore.children.length) aggiungi();
+    });
+    contenitore.appendChild(riga);
+    aggiornaRiga(riga);
+  }
+
+  document.getElementById('aggiungi').addEventListener('click', () => aggiungi());
+  if (precedenti.length) precedenti.forEach(aggiungi); else aggiungi();
+})();
+</script>
+{% endblock %}

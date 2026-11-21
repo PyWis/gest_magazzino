@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+{% block title %}{{ 'Ordine di spesa #' ~ spesa.id if spesa.id else 'Nuovo ordine di spesa' }}{% endblock %}
+{% block content %}
+<h1 class="h3 mb-3">{{ 'Modifica ordine di spesa #' ~ spesa.id if spesa.id else 'Nuovo ordine di spesa' }}</h1>
+{% if spesa.ordine_origine %}
+<div class="alert alert-info">Creato per evadere l'<a href="{{ url_for('ordini.dettaglio', oid=spesa.ordine_origine_id) }}">ordine #{{ spesa.ordine_origine_id }}</a>.</div>
+{% endif %}
+
+<form method="post">
+  <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+  <div class="card mb-3"><div class="card-body row g-3">
+    <div class="col-md-6">
+      <label class="form-label">Fornitore</label>
+      <input class="form-control" name="fornitore" value="{{ request.form.get('fornitore', spesa.fornitore or '') }}" placeholder="es. Cartoleria Rossi">
+    </div>
+    <div class="col-md-6">
+      <label class="form-label">Note</label>
+      <input class="form-control" name="note" value="{{ request.form.get('note', spesa.note or '') }}">
+    </div>
+  </div></div>
+
+  <div class="card mb-3"><div class="card-body">
+    <div class="d-flex justify-content-between align-items-center mb-2">
+      <h2 class="h5 mb-0">Prodotti da acquistare</h2>
+      <a class="small" href="{{ url_for('prodotti.nuovo') }}" target="_blank">Il prodotto non esiste? Crealo (poi ricarica la pagina)</a>
+    </div>
+    <div id="righe"></div>
+    <div class="d-flex justify-content-between align-items-center">
+      <button type="button" class="btn btn-outline-primary btn-sm" id="aggiungi"><i class="bi bi-plus"></i> Aggiungi prodotto</button>
+      <div>Totale stimato: <strong id="totale">—</strong></div>
+    </div>
+  </div></div>
+
+  <button class="btn btn-primary">Salva bozza</button>
+  <a class="btn btn-link" href="{{ url_for('spesa.dettaglio', sid=spesa.id) if spesa.id else url_for('spesa.index') }}">Annulla</a>
+</form>
+
+<template id="tpl-riga">
+  <div class="riga row g-2 align-items-end mb-2">
+    <div class="col-md-6">
+      <select class="form-select sel-prodotto" name="prodotto_id">
+        <option value="">— prodotto —</option>
+        {% for p in prodotti %}<option value="{{ p.id }}" data-simbolo="{{ p.unita.simbolo }}">{{ p.nome }} (in magazzino: {{ p.giacenza|qta }} {{ p.unita.simbolo }})</option>{% endfor %}
+      </select>
+    </div>
+    <div class="col-md-2">
+      <div class="input-group"><input class="form-control inp-qta" name="quantita" inputmode="decimal" placeholder="Q.tà"><span class="input-group-text lbl-unita">—</span></div>
+    </div>
+    <div class="col-md-3">
+      <div class="input-group"><input class="form-control inp-prezzo" name="prezzo" inputmode="decimal" placeholder="Prezzo unit. (facolt.)"><span class="input-group-text">€</span></div>
+    </div>
+    <div class="col-md-1 text-end"><button type="button" class="btn btn-outline-danger rimuovi"><i class="bi bi-trash"></i></button></div>
+  </div>
+</template>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  const contenitore = document.getElementById('righe');
+  const tpl = document.getElementById('tpl-riga');
+  const precedenti = {{ righe_input|tojson }};
+  const num = s => { s = (s || '').toString().trim(); if (!s) return NaN;
+    s = (s.includes(',') && s.includes('.')) ? s.replace(/\./g, '').replace(',', '.') : s.replace(',', '.');
+    return parseFloat(s); };
+  const fmt = v => (v === null || v === undefined || v === '') ? '' : String(v).replace('.', ',');
+
+  function ricalcola() {
+    let tot = 0, ok = false;
+    contenitore.querySelectorAll('.riga').forEach(r => {
+      const q = num(r.querySelector('.inp-qta').value), p = num(r.querySelector('.inp-prezzo').value);
+      if (!isNaN(q) && !isNaN(p)) { tot += q * p; ok = true; }
+      const sel = r.querySelector('.sel-prodotto');
+      r.querySelector('.lbl-unita').textContent = sel.value ? sel.selectedOptions[0].dataset.simbolo : '—';
+    });
+    document.getElementById('totale').textContent = ok ? tot.toLocaleString('it-IT', {style: 'currency', currency: 'EUR'}) : '—';
+  }
+
+  function aggiungi(d) {
+    const r = tpl.content.firstElementChild.cloneNode(true);
+    if (d) {
+      r.querySelector('.sel-prodotto').value = d.prodotto_id || '';
+      r.querySelector('.inp-qta').value = fmt(d.quantita);
+      r.querySelector('.inp-prezzo').value = fmt(d.prezzo);
+    }
+    r.addEventListener('input', ricalcola);
+    r.addEventListener('change', ricalcola);
+    r.querySelector('.rimuovi').addEventListener('click', () => { r.remove(); if (!contenitore.children.length) aggiungi(); ricalcola(); });
+    contenitore.appendChild(r);
+  }
+
+  document.getElementById('aggiungi').addEventListener('click', () => { aggiungi(); ricalcola(); });
+  if (precedenti.length) precedenti.forEach(aggiungi); else aggiungi();
+  ricalcola();
+})();
+</script>
+{% endblock %}

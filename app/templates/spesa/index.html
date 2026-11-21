@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% from "_macros.html" import badge %}
+{% block title %}Ordini di spesa{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h1 class="h3 mb-0">Ordini di spesa</h1>
+  <a class="btn btn-primary" href="{{ url_for('spesa.nuovo') }}"><i class="bi bi-plus-lg"></i> Nuovo ordine di spesa</a>
+</div>
+<ul class="nav nav-pills mb-3">
+  <li class="nav-item"><a class="nav-link {{ 'active' if not filtro }}" href="{{ url_for('spesa.index') }}">Tutti</a></li>
+  {% for val, label in StatoSpesa.ETICHETTE.items() %}
+    <li class="nav-item"><a class="nav-link {{ 'active' if filtro == val }}" href="{{ url_for('spesa.index', stato=val) }}">{{ label }}</a></li>
+  {% endfor %}
+</ul>
+<div class="card"><div class="card-body p-0">
+<table class="table table-hover mb-0">
+  <thead><tr><th>#</th><th>Data</th><th>Fornitore</th><th>Prodotti</th><th class="text-end">Totale</th><th>Stato</th><th></th></tr></thead>
+  <tbody>
+  {% for s in spese %}
+    <tr>
+      <td>{{ s.id }}</td>
+      <td>{{ s.creato_il|data(false) }}</td>
+      <td>{{ s.fornitore or '—' }}</td>
+      <td>{{ s.righe|length }}{% if s.ordine_origine %} <span class="small text-muted">(ord. #{{ s.ordine_origine_id }})</span>{% endif %}</td>
+      <td class="text-end">{{ s.totale|euro if s.totale else '—' }}</td>
+      <td>{{ badge(s) }}</td>
+      <td class="text-end"><a class="btn btn-sm btn-outline-secondary" href="{{ url_for('spesa.dettaglio', sid=s.id) }}">Apri</a></td>
+    </tr>
+  {% else %}
+    <tr><td colspan="7" class="text-center text-muted py-4">Nessun ordine di spesa.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div></div>
+{% endblock %}

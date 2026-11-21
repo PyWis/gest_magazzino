@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% from "_macros.html" import badge %}
+{% block title %}Ordini docenti{% endblock %}
+{% block content %}
+<h1 class="h3 mb-3">Ordini dei docenti</h1>
+<ul class="nav nav-pills mb-3">
+  {% set filtri = [('aperti', 'Da evadere'), ('evaso', 'Evasi'), ('chiuso', 'Chiusi'), ('rifiutato', 'Rifiutati'), ('annullato', 'Annullati'), ('tutti', 'Tutti')] %}
+  {% for val, label in filtri %}
+    <li class="nav-item"><a class="nav-link {{ 'active' if filtro == val }}" href="{{ url_for('ordini.index', stato=val) }}">{{ label }}</a></li>
+  {% endfor %}
+</ul>
+<div class="card"><div class="card-body p-0">
+<table class="table table-hover mb-0">
+  <thead><tr><th>#</th><th>Docente</th><th>Data</th><th>Articoli</th><th>Stato</th><th></th></tr></thead>
+  <tbody>
+  {% for o in ordini %}
+    <tr>
+      <td>{{ o.id }}</td>
+      <td>{{ o.docente.nome_completo }}</td>
+      <td>{{ o.creato_il|data }}</td>
+      <td>{{ o.righe|length }}
+        {% if o.righe|selectattr('richiesta_extra')|list %}<span class="badge text-bg-light border" title="Contiene richieste fuori catalogo">+ altro</span>{% endif %}
+      </td>
+      <td>{{ badge(o) }}</td>
+      <td class="text-end"><a class="btn btn-sm btn-{{ 'primary' if o.aperto else 'outline-secondary' }}" href="{{ url_for('ordini.dettaglio', oid=o.id) }}">{{ 'Evadi' if o.aperto else 'Apri' }}</a></td>
+    </tr>
+  {% else %}
+    <tr><td colspan="6" class="text-center text-muted py-4">Nessun ordine.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div></div>
+{% endblock %}

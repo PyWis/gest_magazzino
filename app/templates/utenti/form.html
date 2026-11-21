@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block title %}{{ 'Nuovo utente' if nuovo else 'Modifica utente' }}{% endblock %}
+{% block content %}
+<div class="row justify-content-center"><div class="col-lg-7">
+<h1 class="h3 mb-3">{{ 'Nuovo utente' if nuovo else 'Modifica ' ~ utente.nome_completo }}</h1>
+<div class="card"><div class="card-body">
+<form method="post">
+  <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+  <div class="row g-3">
+    <div class="col-md-6">
+      <label class="form-label">Nome</label>
+      <input class="form-control" name="nome" required value="{{ request.form.get('nome', utente.nome or '') }}">
+    </div>
+    <div class="col-md-6">
+      <label class="form-label">Cognome</label>
+      <input class="form-control" name="cognome" required value="{{ request.form.get('cognome', utente.cognome or '') }}">
+    </div>
+    <div class="col-md-8">
+      <label class="form-label">Email</label>
+      <input class="form-control" type="email" name="email" required value="{{ request.form.get('email', utente.email or '') }}">
+    </div>
+    <div class="col-md-4">
+      <label class="form-label">Ruolo</label>
+      {% set ruolo_sel = request.form.get('ruolo', utente.ruolo) %}
+      <select class="form-select" name="ruolo">
+        {% for r in ruoli %}
+          <option value="{{ r }}" {{ 'selected' if r == ruolo_sel }}>{{ Ruolo.ETICHETTE[r] }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-12"><hr class="my-1">
+      <div class="form-text mb-2">
+        {% if nuovo %}Password temporanea: l'utente dovrà cambiarla al primo accesso.
+        {% else %}Lascia vuoto per non cambiarla. Se la imposti, l'utente dovrà cambiarla al prossimo accesso.{% endif %}
+      </div>
+    </div>
+    <div class="col-md-6">
+      <label class="form-label">{{ 'Password temporanea' if nuovo else 'Nuova password' }}</label>
+      <input class="form-control" type="password" name="password" minlength="8" {{ 'required' if nuovo }} autocomplete="new-password">
+    </div>
+    <div class="col-md-6">
+      <label class="form-label">Ripeti password</label>
+      <input class="form-control" type="password" name="password2" minlength="8" {{ 'required' if nuovo }} autocomplete="new-password">
+    </div>
+    {% if not nuovo %}
+    <div class="col-12">
+      <div class="form-check form-switch">
+        <input class="form-check-input" type="checkbox" name="attivo" value="1" id="attivo" {{ 'checked' if utente.attivo }}>
+        <label class="form-check-label" for="attivo">Account attivo (se disattivato non può accedere)</label>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+  <div class="mt-4 d-flex gap-2">
+    <button class="btn btn-primary">Salva</button>
+    <a class="btn btn-outline-secondary" href="{{ url_for('utenti.index') }}">Annulla</a>
+  </div>
+</form>
+</div></div>
+</div></div>
+{% endblock %}
