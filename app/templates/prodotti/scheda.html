@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+{% from "_macros.html" import qta, intestazione, vuoto, paginazione, livello, badge, movimento_qta, movimento_rif %}
+{% block title %}{{ prodotto.nome }}{% endblock %}
+{% block content %}
+{% call intestazione(prodotto.nome, (prodotto.categoria ~ ' · ' if prodotto.categoria) ~ prodotto.unita.nome ~ (' · disattivato' if not prodotto.attivo), url_for('prodotti.index'), 'Prodotti') %}
+  <a class="btn btn-outline-secondary" href="{{ url_for('prodotti.modifica', pid=prodotto.id) }}"><i class="bi bi-pencil"></i> Modifica</a>
+  <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#rettifica"><i class="bi bi-sliders"></i> Rettifica giacenza</button>
+{% endcall %}
+
+<div class="row g-3 mb-3">
+  <div class="col-6 col-lg-3"><div class="card stat">
+    <span class="stat-icona tono-{{ {'success':'verde','warning':'giallo','danger':'rosso'}[prodotto.livello_colore] }}"><i class="bi bi-box-seam"></i></span>
+    <div><div class="stat-etichetta">Giacenza</div><div class="stat-numero">{{ prodotto.giacenza|qta }} <small class="fs-6 text-muted">{{ prodotto.unita.simbolo }}</small></div></div>
+  </div></div>
+  <div class="col-6 col-lg-3"><div class="card stat">
+    <span class="stat-icona tono-blu"><i class="bi bi-shield-check"></i></span>
+    <div><div class="stat-etichetta">Scorta minima</div><div class="stat-numero">{{ prodotto.scorta_minima|qta if prodotto.scorta_minima else '—' }}</div></div>
+  </div></div>
+  <div class="col-6 col-lg-3"><div class="card stat">
+    <span class="stat-icona tono-giallo"><i class="bi bi-inbox"></i></span>
+    <div><div class="stat-etichetta">Da consegnare</div><div class="stat-numero">{{ domanda|qta }}</div><div class="stat-nota">in {{ righe_aperte|length }} ordini aperti</div></div>
+  </div></div>
+  <div class="col-6 col-lg-3"><div class="card stat">
+    <span class="stat-icona tono-azzurro"><i class="bi bi-truck"></i></span>
+    <div><div class="stat-etichetta">In arrivo</div><div class="stat-numero">{{ arrivo|qta }}</div><div class="stat-nota">da ordini di spesa</div></div>
+  </div></div>
+</div>
+
+<div class="row g-3">
+  <div class="col-xl-8">
+    <div class="card">
+      <div class="card-header"><h2><i class="bi bi-clock-history icona-titolo"></i>Storico movimenti</h2>
+        <a class="small" href="{{ url_for('prodotti.movimenti', q=prodotto.nome) }}">Apri nel registro</a></div>
+      {% if movimenti.items %}
+      <div class="table-responsive">
+      <table class="table table-sm">
+        <thead><tr><th>Data</th><th>Tipo</th><th class="text-end">Quantità</th><th class="text-end">Giacenza dopo</th><th>Chi</th><th>Riferimento</th></tr></thead>
+        <tbody>
+        {% for m in movimenti.items %}
+          <tr>
+            <td class="text-nowrap small">{{ m.creato_il|data }}</td>
+            <td><span class="stato stato-{{ m.tipo_colore }}">{{ m.tipo_label }}</span></td>
+            <td class="text-end text-nowrap">{{ movimento_qta(m) }}</td>
+            <td class="text-end text-nowrap">{{ m.giacenza_dopo|qta }}</td>
+            <td class="small">{{ m.utente.nome_completo if m.utente else '—' }}</td>
+            <td class="small">{{ movimento_rif(m) }}</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+      </div>
+      {% else %}
+        {{ vuoto('clock-history', 'Nessun movimento', 'Consegne, ricezioni e rettifiche compariranno qui.', piccolo=true) }}
+      {% endif %}
+    </div>
+    {{ paginazione(movimenti) }}
+  </div>
+  <div class="col-xl-4">
+    <div class="card mb-3"><div class="card-body">
+      <h2 class="h6 mb-3">Livello scorte</h2>
+      {{ livello(prodotto) }}
+      {% if prodotto.descrizione %}<hr><p class="mb-0 small">{{ prodotto.descrizione }}</p>{% endif %}
+    </div></div>
+    <div class="card">
+      <div class="card-header"><h2><i class="bi bi-inbox icona-titolo"></i>Ordini in attesa di questo prodotto</h2></div>
+      {% if righe_aperte %}
+      <div class="table-responsive"><table class="table table-sm table-hover">
+        {% for r in righe_aperte %}
+        <tr class="riga-link"><td><a class="stretched-link" href="{{ url_for('ordini.dettaglio', oid=r.ordine_id) }}">#{{ r.ordine_id }}</a>
+          <div class="small text-muted">{{ r.ordine.docente.nome_completo }}</div></td>
+          <td class="text-end text-nowrap">{{ qta(r.mancante, r.unita) }}</td></tr>
+        {% endfor %}
+      </table></div>
+      {% else %}{{ vuoto('check2', 'Nessuno', piccolo=true) }}{% endif %}
+    </div>
+  </div>
+</div>
+
+<div class="modal fade" id="rettifica" tabindex="-1" aria-labelledby="rettifica-titolo" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered"><div class="modal-content">
+    <form method="post" action="{{ url_for('prodotti.rettifica_giacenza', pid=prodotto.id) }}">
+      <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+      <input type="hidden" name="giacenza_vista" value="{{ prodotto.giacenza|qta }}">
+      <div class="modal-header"><h5 class="modal-title" id="rettifica-titolo">Rettifica giacenza</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Chiudi"></button></div>
+      <div class="modal-body">
+        <p class="small text-muted">Usa la rettifica dopo un conteggio fisico (inventario) o per merce rotta, scaduta o smarrita. La correzione resta nello storico.</p>
+        <label class="form-label" for="giac">Giacenza contata</label>
+        <div class="input-group mb-3">
+          <input class="form-control" id="giac" name="giacenza" inputmode="decimal" required value="{{ prodotto.giacenza|qta }}">
+          <span class="input-group-text">{{ prodotto.unita.simbolo }}</span>
+        </div>
+        <label class="form-label" for="motivo">Motivo</label>
+        <input class="form-control" id="motivo" name="motivo" required maxlength="200" list="motivi" placeholder="es. Inventario di fine anno">
+        <datalist id="motivi"><option value="Inventario"><option value="Merce rotta"><option value="Merce scaduta"><option value="Correzione errore di registrazione"></datalist>
+      </div>
+      <div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Annulla</button><button class="btn btn-primary">Salva rettifica</button></div>
+    </form>
+  </div></div>
+</div>
+{% endblock %}

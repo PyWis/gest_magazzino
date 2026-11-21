@@ -1,39 +1,50 @@
 {% extends "base.html" %}
+{% from "_macros.html" import intestazione, vuoto, paginazione %}
 {% block title %}Utenti{% endblock %}
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-3">
-  <h1 class="h3 mb-0">Utenti</h1>
-  <div>
-    {% if current_user.is_superadmin %}
-      <a class="btn btn-outline-primary" href="{{ url_for('utenti.nuovo', ruolo='admin') }}"><i class="bi bi-shield-plus"></i> Nuovo admin</a>
-    {% endif %}
-    <a class="btn btn-primary" href="{{ url_for('utenti.nuovo', ruolo='docente') }}"><i class="bi bi-person-plus"></i> Nuovo docente</a>
+{% call intestazione('Utenti', 'Chi può accedere al gestionale.' if current_user.is_superadmin else 'I docenti che possono ordinare dal magazzino.') %}
+  {% if current_user.is_superadmin %}
+    <a class="btn btn-outline-primary" href="{{ url_for('utenti.nuovo', ruolo='admin') }}"><i class="bi bi-shield-plus"></i> Nuovo admin</a>
+  {% endif %}
+  <a class="btn btn-primary" href="{{ url_for('utenti.nuovo', ruolo='docente') }}"><i class="bi bi-person-plus"></i> Nuovo docente</a>
+{% endcall %}
+
+<form class="cerca mb-3" method="get" style="max-width: 360px">
+  <i class="bi bi-search"></i>
+  <input class="form-control" name="q" value="{{ q }}" placeholder="Cerca per nome o email">
+</form>
+
+<div class="card">
+  {% if utenti.items %}
+  <div class="table-responsive">
+  <table class="table table-hover">
+    <thead><tr><th>Nome</th><th>Email</th><th>Ruolo</th><th>Stato</th><th></th></tr></thead>
+    <tbody>
+    {% for u in utenti.items %}
+      <tr class="{{ 'riga-link' if puo_gestire(u) }} {{ 'opacity-50' if not u.attivo }}">
+        <td>
+          <div class="d-flex align-items-center gap-2">
+            <span class="avatar avatar-sm {{ 'tenue' if u.is_docente }}">{{ u.iniziali }}</span>
+            {% if puo_gestire(u) %}<a class="stretched-link" href="{{ url_for('utenti.modifica', uid=u.id) }}">{{ u.nome_completo }}</a>
+            {% else %}<span class="fw-semibold">{{ u.nome_completo }}</span>{% if u.id == current_user.id %} <span class="chip">tu</span>{% endif %}{% endif %}
+          </div>
+        </td>
+        <td class="text-muted">{{ u.email }}</td>
+        <td><span class="stato stato-{{ {'superadmin':'danger','admin':'primary','docente':'secondary'}[u.ruolo] }}">{{ u.ruolo_label }}</span></td>
+        <td>
+          {% if not u.attivo %}<span class="stato stato-dark">Disattivato</span>
+          {% elif u.primo_accesso %}<span class="stato stato-warning">In attesa di primo accesso</span>
+          {% else %}<span class="stato stato-success">Attivo</span>{% endif %}
+        </td>
+        <td class="text-end">{% if puo_gestire(u) %}<i class="bi bi-chevron-right text-muted"></i>{% endif %}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
   </div>
-</div>
-<div class="card"><div class="card-body p-0">
-<table class="table table-hover mb-0">
-  <thead><tr><th>Nome</th><th>Email</th><th>Ruolo</th><th>Stato</th><th></th></tr></thead>
-  <tbody>
-  {% for u in utenti %}
-    <tr class="{{ 'text-muted' if not u.attivo }}">
-      <td>{{ u.nome_completo }}</td>
-      <td>{{ u.email }}</td>
-      <td><span class="badge text-bg-{{ {'superadmin':'danger','admin':'primary','docente':'secondary'}[u.ruolo] }}">{{ u.ruolo_label }}</span></td>
-      <td>
-        {% if not u.attivo %}<span class="badge text-bg-dark">Disattivato</span>
-        {% elif u.primo_accesso %}<span class="badge text-bg-light border">In attesa di primo accesso</span>
-        {% else %}<span class="badge text-bg-success">Attivo</span>{% endif %}
-      </td>
-      <td class="text-end">
-        {% if puo_gestire(u) %}
-          <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('utenti.modifica', uid=u.id) }}">Modifica</a>
-        {% endif %}
-      </td>
-    </tr>
   {% else %}
-    <tr><td colspan="5" class="text-muted text-center py-4">Nessun utente.</td></tr>
-  {% endfor %}
-  </tbody>
-</table>
-</div></div>
+    {{ vuoto('people', 'Nessun utente trovato') }}
+  {% endif %}
+</div>
+{{ paginazione(utenti) }}
 {% endblock %}

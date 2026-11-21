@@ -1,34 +1,50 @@
 {% extends "base.html" %}
+{% from "_macros.html" import intestazione %}
 {% block title %}Unità di misura{% endblock %}
 {% block content %}
-<div class="row justify-content-center"><div class="col-lg-7">
-<h1 class="h3 mb-3">Unità di misura</h1>
-<div class="card mb-3"><div class="card-body">
-  <form method="post" class="row g-2">
+<div class="row justify-content-center"><div class="col-xl-9">
+{{ intestazione('Unità di misura', 'Le unità dello stesso tipo (es. litri e millilitri) vengono convertite in automatico.') }}
+<div class="card mb-3">
+  <div class="card-header"><h2><i class="bi bi-plus-circle icona-titolo"></i>Nuova unità</h2></div>
+  <div class="card-body">
+  <form method="post" class="row g-2 align-items-end">
     <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
-    <div class="col-md-6"><input class="form-control" name="nome" placeholder="Nome (es. Risme)" required></div>
-    <div class="col-md-3"><input class="form-control" name="simbolo" placeholder="Simbolo" required></div>
-    <div class="col-md-3"><button class="btn btn-primary w-100">Aggiungi</button></div>
+    <div class="col-md-4"><label class="form-label small" for="nome">Nome</label><input class="form-control" id="nome" name="nome" placeholder="es. Decilitri" required></div>
+    <div class="col-md-2"><label class="form-label small" for="simbolo">Simbolo</label><input class="form-control" id="simbolo" name="simbolo" placeholder="dl" required></div>
+    <div class="col-md-3"><label class="form-label small" for="gruppo">Tipo</label>
+      <select class="form-select" id="gruppo" name="gruppo">
+        <option value="">Non convertibile (pezzi, risme…)</option>
+        {% for k, v in GruppoUnita.ETICHETTE.items() %}<option value="{{ k }}">{{ v }}</option>{% endfor %}
+      </select></div>
+    <div class="col-md-2"><label class="form-label small" for="fattore">= unità base</label><input class="form-control" id="fattore" name="fattore" inputmode="decimal" placeholder="es. 0,1"></div>
+    <div class="col-md-1 d-grid"><button class="btn btn-primary" aria-label="Aggiungi"><i class="bi bi-plus-lg"></i></button></div>
+    <div class="col-12 form-text">Esempio: 1 decilitro = <strong>0,1</strong> litri → tipo «Volume», unità base 0,1.</div>
   </form>
-</div></div>
-<div class="card"><div class="card-body p-0">
-<table class="table mb-0">
-  <thead><tr><th>Nome</th><th>Simbolo</th><th></th></tr></thead>
-  <tbody>
-  {% for u in elenco %}
-    <tr><td>{{ u.nome }}</td><td><code>{{ u.simbolo }}</code></td>
-      <td class="text-end">
-        {% if u.id in in_uso %}<span class="small text-muted">in uso</span>
-        {% else %}
-        <form method="post" action="{{ url_for('prodotti.elimina_unita', uid=u.id) }}" class="d-inline">
-          <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
-          <button class="btn btn-sm btn-outline-danger">Elimina</button>
-        </form>
-        {% endif %}
-      </td></tr>
-  {% endfor %}
-  </tbody>
-</table>
-</div></div>
+  </div>
+</div>
+<div class="card">
+  <div class="table-responsive">
+  <table class="table">
+    <thead><tr><th>Nome</th><th>Simbolo</th><th>Tipo</th><th class="text-end">Conversione</th><th></th></tr></thead>
+    <tbody>
+    {% set basi = {'volume': 'l', 'massa': 'kg', 'lunghezza': 'm', 'superficie': 'm²'} %}
+    {% for u in elenco %}
+      <tr><td class="fw-semibold">{{ u.nome }}</td><td><span class="chip">{{ u.simbolo }}</span></td>
+        <td>{{ u.gruppo|capitalize if u.gruppo else '—' }}</td>
+        <td class="text-end small text-muted">{% if u.gruppo and u.fattore %}1 {{ u.simbolo }} = {{ u.fattore|qta }} {{ basi[u.gruppo] }}{% else %}—{% endif %}</td>
+        <td class="text-end">
+          {% if u.id in in_uso %}<span class="small text-muted">in uso</span>
+          {% else %}
+          <form method="post" action="{{ url_for('prodotti.elimina_unita', uid=u.id) }}" class="d-inline">
+            <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+            <button class="btn btn-sm btn-outline-danger" data-conferma="Eliminare l'unità «{{ u.nome }}»?"><i class="bi bi-trash"></i></button>
+          </form>
+          {% endif %}
+        </td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</div>
 </div></div>
 {% endblock %}

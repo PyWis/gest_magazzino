@@ -1,139 +1,211 @@
 {% extends "base.html" %}
-{% from "_macros.html" import badge, qta %}
+{% from "_macros.html" import badge, qta, intestazione %}
 {% block title %}Ordine #{{ ordine.id }}{% endblock %}
+{% block head %}{% if prodotti %}<link href="{{ url_for('static', filename='vendor/tomselect/tom-select.bootstrap5.min.css') }}" rel="stylesheet">{% endif %}{% endblock %}
 {% block content %}
 {% set gestibile = current_user.is_admin and ordine.aperto %}
+{% set indietro = url_for('ordini.index') if current_user.is_admin else url_for('ordini.miei') %}
 
-<div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-3">
-  <div>
-    <h1 class="h3 mb-1">Ordine #{{ ordine.id }} {{ badge(ordine) }}</h1>
-    <div class="text-muted">
-      {{ ordine.docente.nome_completo }} · {{ ordine.creato_il|data }}
-      {% if ordine.gestito_da %} · gestito da {{ ordine.gestito_da.nome_completo }}{% endif %}
-    </div>
-  </div>
-  <div class="d-flex gap-2 d-print-none">
-    <button class="btn btn-outline-secondary" onclick="window.print()"><i class="bi bi-printer"></i> Stampa</button>
-    {% if current_user.is_docente and ordine.stato == StatoOrdine.IN_ATTESA %}
-    <form method="post" action="{{ url_for('ordini.annulla', oid=ordine.id) }}" onsubmit="return confirm('Annullare questo ordine?')">
+{% call intestazione('Ordine #' ~ ordine.id, none, indietro, 'Ordini docenti' if current_user.is_admin else 'I miei ordini') %}
+  <button class="btn btn-outline-secondary" onclick="window.print()"><i class="bi bi-printer"></i> Stampa</button>
+  {% if current_user.is_docente %}
+    <a class="btn btn-outline-primary" href="{{ url_for('ordini.nuovo', da=ordine.id) }}"><i class="bi bi-arrow-repeat"></i> Ripeti ordine</a>
+    {% if ordine.stato == StatoOrdine.IN_ATTESA %}
+    <form method="post" action="{{ url_for('ordini.annulla', oid=ordine.id) }}">
       <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
-      <button class="btn btn-outline-danger">Annulla ordine</button>
+      <button class="btn btn-outline-danger" data-conferma="Annullare questo ordine?"><i class="bi bi-x-circle"></i> Annulla ordine</button>
     </form>
     {% endif %}
+  {% endif %}
+{% endcall %}
+
+{# ---- riepilogo e percorso dell'ordine #}
+<div class="card mb-3"><div class="card-body">
+  <div class="row g-4 align-items-center">
+    <div class="col-lg-5">
+      <div class="d-flex align-items-center gap-3">
+        <span class="avatar" style="width:46px;height:46px">{{ ordine.docente.iniziali }}</span>
+        <div>
+          <div class="fw-semibold">{{ ordine.docente.nome_completo }}</div>
+          <div class="small text-muted">Inviato il {{ ordine.creato_il|data }} ({{ ordine.creato_il|tempo_fa }})</div>
+          {% if ordine.gestito_da %}<div class="small text-muted">Gestito da {{ ordine.gestito_da.nome_completo }}</div>{% endif %}
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-7">
+      {% set ko = ordine.stato in [StatoOrdine.RIFIUTATO, StatoOrdine.ANNULLATO] %}
+      {% set passo = {'in_attesa': 1, 'evaso_parziale': 2, 'evaso': 3, 'chiuso': 3}.get(ordine.stato, 1) %}
+      <ol class="percorso">
+        <li class="fatto"><span class="pallino"><i class="bi bi-send"></i></span>Inviato</li>
+        {% if ko %}
+          <li class="ko corrente"><span class="pallino"><i class="bi bi-x-lg"></i></span>{{ ordine.stato_label }}</li>
+        {% else %}
+          <li class="{{ 'fatto' if passo > 2 else 'corrente' if passo == 2 }}"><span class="pallino"><i class="bi bi-box-arrow-up"></i></span>In consegna</li>
+          <li class="{{ 'fatto' if passo == 3 }}"><span class="pallino"><i class="bi bi-check-lg"></i></span>{{ 'Chiuso' if ordine.stato == StatoOrdine.CHIUSO else 'Evaso' }}</li>
+        {% endif %}
+      </ol>
+    </div>
   </div>
-</div>
+  <div class="d-flex flex-wrap align-items-center gap-3 mt-3 pt-3 border-top">
+    {{ badge(ordine, true) }}
+    <div class="flex-grow-1" style="max-width: 360px">
+      <div class="progress" style="height: 8px"><div class="progress-bar" style="width: {{ ordine.percentuale }}%"></div></div>
+    </div>
+    <span class="small text-muted">{{ ordine.righe_complete }} di {{ ordine.righe|length }} articoli consegnati completamente</span>
+  </div>
+</div></div>
 
 {% if ordine.note %}
-<div class="alert alert-light border"><strong>Note del docente:</strong> {{ ordine.note }}</div>
+<div class="alert alert-light"><i class="bi bi-chat-left-quote"></i><strong>Note del docente:</strong> {{ ordine.note }}</div>
 {% endif %}
 {% if ordine.nota_admin and not gestibile %}
-<div class="alert alert-secondary"><strong>Nota del magazzino:</strong> {{ ordine.nota_admin }}</div>
+<div class="alert alert-info"><i class="bi bi-chat-left-dots"></i><strong>Nota del magazzino:</strong> {{ ordine.nota_admin }}</div>
 {% endif %}
 
-<form method="post" action="{{ url_for('ordini.gestisci', oid=ordine.id) }}">
+<form method="post" action="{{ url_for('ordini.gestisci', oid=ordine.id) }}" id="gestisci" data-no-invio>
 <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
-<div class="card mb-3"><div class="card-body p-0">
-<table class="table mb-0">
-  <thead>
-    <tr>
-      <th>Articolo</th>
-      <th class="text-end">Richiesto</th>
-      <th class="text-end">Consegnato</th>
-      {% if current_user.is_admin %}<th class="text-end">In magazzino</th>{% endif %}
-      {% if gestibile %}<th class="d-print-none">Consegna ora</th>{% endif %}
-    </tr>
-  </thead>
-  <tbody>
-  {% for r in ordine.righe %}
-    <tr class="{{ 'table-success' if r.completa }}">
-      <td>
-        <strong>{{ r.nome }}</strong>
-        {% if r.richiesta_extra %}
-          <span class="badge text-bg-warning">Richiesta extra</span>
-          {% if r.prodotto and r.descrizione_libera != r.prodotto.nome %}
-            <div class="small text-muted">Richiesto come: «{{ r.descrizione_libera }}»</div>
-          {% endif %}
-        {% endif %}
-      </td>
-      <td class="text-end">{{ qta(r.quantita_richiesta, r.unita) }}</td>
-      <td class="text-end">{{ qta(r.quantita_evasa, r.unita) }}</td>
-      {% if current_user.is_admin %}
-      <td class="text-end">
-        {% if r.prodotto %}
-          <span class="{{ 'text-danger fw-bold' if r.prodotto.giacenza + 1e-9 < r.mancante }}">{{ qta(r.prodotto.giacenza, r.prodotto.unita) }}</span>
-        {% else %}<span class="text-muted">non a catalogo</span>{% endif %}
-      </td>
-      {% endif %}
-      {% if gestibile %}
-      <td class="d-print-none">
-        {% if r.completa %}
-          <i class="bi bi-check-circle-fill text-success"></i> completo
-        {% elif r.prodotto %}
-          {% set proposta = [r.mancante, [r.prodotto.giacenza, 0]|max]|min %}
-          <div class="input-group input-group-sm input-qta">
-            <input class="form-control" name="consegna_{{ r.id }}" inputmode="decimal" value="{{ proposta|qta }}">
-            <span class="input-group-text">{{ r.prodotto.unita.simbolo }}</span>
-          </div>
-        {% else %}
-          <div class="d-flex flex-column gap-1" style="max-width: 22rem">
-            <a class="btn btn-sm btn-warning" href="{{ url_for('prodotti.nuovo', da_riga=r.id) }}"><i class="bi bi-plus-lg"></i> Crea prodotto da questa richiesta</a>
-            <select class="form-select form-select-sm" name="collega_{{ r.id }}">
-              <option value="">…oppure collega a un prodotto esistente</option>
-              {% for p in prodotti %}<option value="{{ p.id }}">{{ p.nome }} ({{ p.unita.simbolo }})</option>{% endfor %}
-            </select>
-          </div>
-        {% endif %}
-      </td>
-      {% endif %}
-    </tr>
-  {% endfor %}
-  </tbody>
-</table>
-</div></div>
-
-{% if gestibile %}
-<div class="card mb-3 d-print-none"><div class="card-body">
-  <label class="form-label" for="nota_admin">Nota per il docente (facoltativa)</label>
-  <textarea class="form-control mb-3" id="nota_admin" name="nota_admin" rows="2">{{ ordine.nota_admin }}</textarea>
-  <div class="d-flex flex-wrap gap-2">
-    <button class="btn btn-success" name="azione" value="consegna"><i class="bi bi-box-arrow-right"></i> Registra consegna</button>
-    <button class="btn btn-outline-secondary" name="azione" value="chiudi"
-            onclick="return confirm('Registrare le quantità indicate e chiudere l\'ordine anche se incompleto?')">Consegna e chiudi ordine</button>
-    {% if not ordine.qualcosa_consegnato %}
-    <button class="btn btn-outline-danger" name="azione" value="rifiuta"
-            onclick="return confirm('Rifiutare l\'intero ordine?')">Rifiuta ordine</button>
-    {% endif %}
+<div class="card mb-3">
+  <div class="card-header"><h2><i class="bi bi-list-check icona-titolo"></i>Articoli richiesti</h2>
+    {% if gestibile %}<span class="small text-muted d-none d-md-inline">Le quantità proposte tengono conto di quanto c'è in magazzino</span>{% endif %}
   </div>
-  <div class="form-text">Le quantità consegnate vengono scaricate dal magazzino. Puoi consegnare in più volte: l'ordine resta aperto finché non è completo.</div>
-</div></div>
-{% endif %}
+  <div class="table-responsive">
+  <table class="table">
+    <thead>
+      <tr>
+        <th>Articolo</th>
+        <th class="text-end">Richiesto</th>
+        <th class="text-end">Consegnato</th>
+        {% if current_user.is_admin %}<th class="text-end">In magazzino</th>{% endif %}
+        {% if gestibile %}<th class="d-print-none">Consegna ora</th>{% endif %}
+      </tr>
+    </thead>
+    <tbody>
+    {% for r in ordine.righe %}
+      <tr class="{{ 'riga-completa' if r.completa }}">
+        <td>
+          <div class="fw-semibold">
+            {% if r.completa %}<i class="bi bi-check-circle-fill text-success me-1"></i>{% endif %}
+            {% if current_user.is_admin and r.prodotto %}<a class="text-reset text-decoration-none" href="{{ url_for('prodotti.scheda', pid=r.prodotto_id) }}">{{ r.nome }}</a>{% else %}{{ r.nome }}{% endif %}
+          </div>
+          {% if r.richiesta_extra %}
+            <span class="chip chip-giallo mt-1"><i class="bi bi-stars"></i>Richiesta fuori catalogo</span>
+            {% if r.prodotto and r.descrizione_libera != r.prodotto.nome %}
+              <div class="small text-muted mt-1">Richiesto come: «{{ r.descrizione_libera }}»</div>
+            {% endif %}
+          {% endif %}
+          {% if r.richiesta_originale %}<div class="small text-muted"><i class="bi bi-arrow-left-right"></i> Il docente aveva chiesto {{ r.richiesta_originale }}</div>{% endif %}
+        </td>
+        <td class="text-end text-nowrap">{{ qta(r.quantita_richiesta, r.unita) }}</td>
+        <td class="text-end text-nowrap">{{ qta(r.quantita_evasa, r.unita) }}</td>
+        {% if current_user.is_admin %}
+        <td class="text-end text-nowrap">
+          {% if r.prodotto %}
+            <span class="{{ 'text-danger fw-bold' if r.prodotto.giacenza < r.mancante }}">{{ qta(r.prodotto.giacenza, r.prodotto.unita) }}</span>
+          {% else %}<span class="text-muted small">non a catalogo</span>{% endif %}
+        </td>
+        {% endif %}
+        {% if gestibile %}
+        <td class="d-print-none">
+          {% if r.completa %}
+            <span class="text-success small fw-semibold"><i class="bi bi-check2-all"></i> completo</span>
+          {% elif r.prodotto %}
+            {% set proposta = [r.mancante, [r.prodotto.giacenza, 0]|max]|min %}
+            <div class="input-group input-group-sm input-qta">
+              <input class="form-control" name="consegna_{{ r.id }}" inputmode="decimal" value="{{ proposta|qta }}" aria-label="Quantità da consegnare">
+              <span class="input-group-text">{{ r.prodotto.unita.simbolo }}</span>
+            </div>
+          {% else %}
+            <div class="d-flex flex-column gap-2" style="min-width: 17rem; max-width: 24rem">
+              <a class="btn btn-sm btn-azzurro" href="{{ url_for('prodotti.nuovo', da_riga=r.id) }}"><i class="bi bi-plus-lg"></i> Crea prodotto da questa richiesta</a>
+              <select class="sel-collega" name="collega_{{ r.id }}" data-riga="{{ r.id }}" data-unita="{{ r.unita.id }}" data-gruppo="{{ r.unita.gruppo }}" placeholder="…oppure collega a un prodotto esistente">
+                <option value="">…oppure collega a un prodotto esistente</option>
+                {% for p in prodotti %}<option value="{{ p.id }}" data-simbolo="{{ p.unita.simbolo }}" data-unita="{{ p.unita.id }}" data-gruppo="{{ p.unita.gruppo }}">{{ p.nome }} ({{ p.unita.simbolo }})</option>{% endfor %}
+              </select>
+              <div class="input-group input-group-sm conv d-none" id="conv_{{ r.id }}">
+                <span class="input-group-text">Quantità</span>
+                <input class="form-control" name="qta_collega_{{ r.id }}" inputmode="decimal" placeholder="">
+                <span class="input-group-text simbolo"></span>
+              </div>
+              <div class="small text-muted conv-nota d-none" id="convnota_{{ r.id }}"></div>
+            </div>
+          {% endif %}
+        </td>
+        {% endif %}
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</div>
 </form>
 
 {% if gestibile %}
-<div class="card mb-3 d-print-none"><div class="card-body d-flex flex-wrap justify-content-between align-items-center gap-2">
-  <div>
-    <strong>Manca qualcosa in magazzino?</strong>
-    <div class="small text-muted">Crea una bozza di ordine di spesa con le quantità mancanti per evadere questo ordine.</div>
+<div class="row g-3 mb-3 d-print-none">
+  <div class="col-lg-8">
+    <div class="card h-100"><div class="card-body">
+      <label class="form-label" for="nota_admin">Nota per il docente <span class="text-muted fw-normal">(facoltativa)</span></label>
+      <textarea class="form-control mb-3" id="nota_admin" name="nota_admin" form="gestisci" rows="2" placeholder="es. il resto arriva la prossima settimana">{{ ordine.nota_admin }}</textarea>
+      <div class="d-flex flex-wrap gap-2">
+        <button class="btn btn-primary" form="gestisci" name="azione" value="consegna"><i class="bi bi-box-arrow-up"></i> Registra consegna</button>
+        <button class="btn btn-outline-secondary" form="gestisci" name="azione" value="chiudi"
+                data-conferma="Registrare le quantità indicate e chiudere l'ordine anche se incompleto?"><i class="bi bi-lock"></i> Consegna e chiudi</button>
+        {% if not ordine.qualcosa_consegnato %}
+        <button class="btn btn-outline-danger ms-md-auto" form="gestisci" name="azione" value="rifiuta"
+                data-conferma="Rifiutare l'intero ordine?"><i class="bi bi-x-circle"></i> Rifiuta</button>
+        {% endif %}
+      </div>
+      <div class="form-text mt-2">Le quantità consegnate vengono scaricate dal magazzino e registrate nei movimenti. Puoi consegnare in più volte.</div>
+    </div></div>
   </div>
-  <form method="post" action="{{ url_for('ordini.crea_spesa', oid=ordine.id) }}">
-    <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
-    <button class="btn btn-outline-primary"><i class="bi bi-cart-plus"></i> Crea ordine di spesa</button>
-  </form>
-</div></div>
+  <div class="col-lg-4">
+    <div class="card h-100"><div class="card-body d-flex flex-column">
+      <div class="d-flex align-items-center gap-2 mb-1"><span class="stat-icona tono-azzurro" style="width:36px;height:36px;font-size:1rem;border-radius:10px"><i class="bi bi-cart-plus"></i></span><strong>Manca qualcosa?</strong></div>
+      <p class="small text-muted flex-grow-1">Crea una bozza di ordine di spesa con ciò che serve, tenendo conto di quanto è già in arrivo.</p>
+      <form method="post" action="{{ url_for('ordini.crea_spesa', oid=ordine.id) }}">
+        <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+        <button class="btn btn-outline-primary w-100"><i class="bi bi-cart-plus"></i> Crea ordine di spesa</button>
+      </form>
+    </div></div>
+  </div>
+</div>
 {% endif %}
 
 {% if current_user.is_admin and ordine.ordini_spesa %}
-<div class="card"><div class="card-body">
-  <h2 class="h6">Ordini di spesa collegati</h2>
-  <ul class="mb-0">
+<div class="card">
+  <div class="card-header"><h2><i class="bi bi-truck icona-titolo"></i>Ordini di spesa collegati</h2></div>
+  <div class="table-responsive"><table class="table table-sm table-hover">
   {% for s in ordine.ordini_spesa %}
-    <li><a href="{{ url_for('spesa.dettaglio', sid=s.id) }}">Ordine di spesa #{{ s.id }}</a> {{ badge(s) }}</li>
+    <tr class="riga-link"><td><a class="stretched-link" href="{{ url_for('spesa.dettaglio', sid=s.id) }}">Ordine di spesa #{{ s.id }}</a></td>
+      <td>{{ s.fornitore_nome or '—' }}</td><td class="text-end">{{ badge(s) }}</td></tr>
   {% endfor %}
-  </ul>
-</div></div>
-{% endif %}
-
-<div class="mt-3 d-print-none">
-  <a href="{{ url_for('ordini.index') if current_user.is_admin else url_for('ordini.miei') }}">&larr; Torna agli ordini</a>
+  </table></div>
 </div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+{% if prodotti %}
+<script src="{{ url_for('static', filename='vendor/tomselect/tom-select.complete.min.js') }}"></script>
+<script>
+document.querySelectorAll('.sel-collega').forEach(function (sel) {
+  const riga = sel.dataset.riga, uRiga = sel.dataset.unita, gRiga = sel.dataset.gruppo;
+  const conv = document.getElementById('conv_' + riga), nota = document.getElementById('convnota_' + riga);
+  const ts = new TomSelect(sel, { maxOptions: 500, refreshThrottle: 0, closeAfterSelect: true, dropdownParent: 'body' });
+  ts.on('change', function (v) {
+    const d = v ? ts.options[v] : null;
+    const diversa = d && d.unita !== uRiga;
+    conv.classList.toggle('d-none', !diversa);
+    nota.classList.toggle('d-none', !diversa);
+    if (!diversa) { conv.querySelector('input').value = ''; return; }
+    conv.querySelector('.simbolo').textContent = d.simbolo;
+    const auto = gRiga && gRiga === d.gruppo;
+    conv.querySelector('input').required = !auto;
+    conv.querySelector('input').placeholder = auto ? 'automatica' : 'obbligatoria';
+    nota.textContent = auto
+      ? 'Unità diversa: la quantità verrà convertita in automatico (o scrivila tu).'
+      : 'Unità non convertibile: indica quanto serve in ' + d.simbolo + '.';
+  });
+});
+</script>
+{% endif %}
 {% endblock %}

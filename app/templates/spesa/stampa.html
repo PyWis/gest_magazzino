@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Ordine n. {{ spesa.id }} · {{ NOME_SCUOLA }}</title>
+  <link href="{{ url_for('static', filename='vendor/bootstrap/bootstrap.min.css') }}" rel="stylesheet">
+  <link href="{{ url_for('static', filename='style.css') }}" rel="stylesheet">
+  <style>
+    body { background: #e9eef6; }
+    .foglio { background: #fff; color: #12203f; max-width: 210mm; min-height: 297mm; margin: 1.5rem auto; padding: 18mm 16mm; box-shadow: 0 10px 40px rgba(16,38,89,.15); }
+    .testata { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 3px solid var(--blu-600); padding-bottom: 1rem; margin-bottom: 1.5rem; }
+    .testata .scuola { font-size: 1.3rem; font-weight: 700; color: var(--blu-800); }
+    .testata .tag { display: inline-block; padding: .2rem .6rem; border-radius: 4px; background: var(--azzurro-100); color: #04679c; font-weight: 700; font-size: .75rem; letter-spacing: .08em; }
+    .tabella th { background: var(--blu-800) !important; color: #fff !important; font-size: .75rem; text-transform: uppercase; letter-spacing: .05em; }
+    .tabella td, .tabella th { padding: .55rem .7rem; border-color: #d8e0ee; }
+    .firma { margin-top: 3.5rem; display: flex; justify-content: flex-end; }
+    .firma div { width: 60mm; border-top: 1px solid #12203f; text-align: center; padding-top: .3rem; font-size: .85rem; }
+    .barra { position: sticky; top: 0; background: var(--blu-800); color: #fff; padding: .6rem 1rem; display: flex; gap: .5rem; justify-content: center; align-items: center; }
+    @media print { body { background: #fff; } .barra { display: none; } .foglio { box-shadow: none; margin: 0; padding: 0; min-height: auto; max-width: none; } @page { margin: 15mm; } }
+  </style>
+</head>
+<body>
+<div class="barra">
+  <span class="small me-2">Per un PDF scegli «Salva come PDF» nella finestra di stampa.</span>
+  <button class="btn btn-sm btn-light" onclick="window.print()">Stampa / salva PDF</button>
+</div>
+<div class="foglio">
+  <div class="testata">
+    <div>
+      <div class="scuola">{{ NOME_SCUOLA }}</div>
+      <div class="text-muted small">Ufficio magazzino</div>
+    </div>
+    <div class="text-end">
+      <span class="tag">ORDINE DI ACQUISTO</span>
+      <div class="fs-4 fw-bold mt-1">N. {{ spesa.id }}</div>
+      <div class="small text-muted">del {{ (spesa.inviato_il or oggi)|data(false) }}</div>
+    </div>
+  </div>
+
+  <div class="row mb-4">
+    <div class="col-6">
+      <div class="small text-uppercase fw-semibold text-muted">Spett.le fornitore</div>
+      <div class="fs-5 fw-semibold">{{ spesa.fornitore_nome or '________________________' }}</div>
+      {% if spesa.fornitore %}
+        {% if spesa.fornitore.email %}<div class="small">{{ spesa.fornitore.email }}</div>{% endif %}
+        {% if spesa.fornitore.telefono %}<div class="small">Tel. {{ spesa.fornitore.telefono }}</div>{% endif %}
+      {% endif %}
+    </div>
+    <div class="col-6 text-end small">
+      <div>Richiesto da: <strong>{{ spesa.creato_da.nome_completo }}</strong></div>
+      <div>{{ spesa.creato_da.email }}</div>
+    </div>
+  </div>
+
+  <p>Con la presente si richiede la fornitura del seguente materiale:</p>
+  <table class="table tabella">
+    <thead><tr><th style="width:2.5rem">#</th><th>Descrizione</th><th class="text-end">Quantità</th><th>U.m.</th><th class="text-end">Prezzo unit.</th><th class="text-end">Importo</th></tr></thead>
+    <tbody>
+    {% for r in spesa.righe %}
+      <tr><td>{{ loop.index }}</td><td>{{ r.prodotto.nome }}{% if r.prodotto.descrizione %}<div class="small text-muted">{{ r.prodotto.descrizione }}</div>{% endif %}</td>
+        <td class="text-end">{{ r.quantita|qta }}</td><td>{{ r.prodotto.unita.simbolo }}</td>
+        <td class="text-end">{{ r.prezzo_unitario|euro if r.prezzo_unitario is not none else '' }}</td>
+        <td class="text-end">{{ r.subtotale|euro if r.subtotale is not none else '' }}</td></tr>
+    {% endfor %}
+    </tbody>
+    {% if spesa.totale %}<tfoot><tr><th colspan="5" class="text-end" style="background:#f2f6fc !important;color:#12203f !important">Totale (IVA esclusa salvo diversa indicazione)</th><th class="text-end" style="background:#f2f6fc !important;color:#12203f !important">{{ spesa.totale|euro }}</th></tr></tfoot>{% endif %}
+  </table>
+
+  {% if spesa.note %}<p><strong>Note:</strong> {{ spesa.note }}</p>{% endif %}
+  <p class="small text-muted">Si prega di indicare il numero d'ordine nel documento di trasporto e in fattura.</p>
+
+  <div class="firma"><div>Il responsabile</div></div>
+</div>
+</body>
+</html>

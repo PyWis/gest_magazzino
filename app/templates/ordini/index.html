@@ -1,33 +1,51 @@
 {% extends "base.html" %}
-{% from "_macros.html" import badge %}
+{% from "_macros.html" import badge, intestazione, vuoto, paginazione, filtri %}
 {% block title %}Ordini docenti{% endblock %}
 {% block content %}
-<h1 class="h3 mb-3">Ordini dei docenti</h1>
-<ul class="nav nav-pills mb-3">
-  {% set filtri = [('aperti', 'Da evadere'), ('evaso', 'Evasi'), ('chiuso', 'Chiusi'), ('rifiutato', 'Rifiutati'), ('annullato', 'Annullati'), ('tutti', 'Tutti')] %}
-  {% for val, label in filtri %}
-    <li class="nav-item"><a class="nav-link {{ 'active' if filtro == val }}" href="{{ url_for('ordini.index', stato=val) }}">{{ label }}</a></li>
-  {% endfor %}
-</ul>
-<div class="card"><div class="card-body p-0">
-<table class="table table-hover mb-0">
-  <thead><tr><th>#</th><th>Docente</th><th>Data</th><th>Articoli</th><th>Stato</th><th></th></tr></thead>
-  <tbody>
-  {% for o in ordini %}
-    <tr>
-      <td>{{ o.id }}</td>
-      <td>{{ o.docente.nome_completo }}</td>
-      <td>{{ o.creato_il|data }}</td>
-      <td>{{ o.righe|length }}
-        {% if o.righe|selectattr('richiesta_extra')|list %}<span class="badge text-bg-light border" title="Contiene richieste fuori catalogo">+ altro</span>{% endif %}
-      </td>
-      <td>{{ badge(o) }}</td>
-      <td class="text-end"><a class="btn btn-sm btn-{{ 'primary' if o.aperto else 'outline-secondary' }}" href="{{ url_for('ordini.dettaglio', oid=o.id) }}">{{ 'Evadi' if o.aperto else 'Apri' }}</a></td>
-    </tr>
+{{ intestazione('Ordini dei docenti', 'Evadi le richieste: le quantità consegnate vengono scaricate dal magazzino.') }}
+
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+  {{ filtri([('aperti', 'Da evadere'), ('evaso', 'Evasi'), ('chiuso', 'Chiusi'), ('rifiutato', 'Rifiutati'), ('annullato', 'Annullati'), ('tutti', 'Tutti')], filtro, 'ordini.index') }}
+  <form class="cerca" method="get" style="min-width: 260px">
+    <input type="hidden" name="stato" value="{{ filtro }}">
+    <i class="bi bi-search"></i>
+    <input class="form-control" name="q" value="{{ q }}" placeholder="Cerca docente o n° ordine">
+  </form>
+</div>
+
+<div class="card">
+  {% if ordini.items %}
+  <div class="table-responsive">
+  <table class="table table-hover">
+    <thead><tr><th>Ordine</th><th>Docente</th><th>Data</th><th>Articoli</th><th>Avanzamento</th><th>Stato</th><th></th></tr></thead>
+    <tbody>
+    {% for o in ordini.items %}
+      <tr class="riga-link">
+        <td><a class="stretched-link" href="{{ url_for('ordini.dettaglio', oid=o.id) }}">#{{ o.id }}</a></td>
+        <td>
+          <div class="d-flex align-items-center gap-2">
+            <span class="avatar avatar-sm tenue">{{ o.docente.iniziali }}</span>
+            <span class="text-nowrap">{{ o.docente.nome_completo }}</span>
+          </div>
+        </td>
+        <td class="text-nowrap">{{ o.creato_il|data }}<div class="small text-muted">{{ o.creato_il|tempo_fa }}</div></td>
+        <td>{{ o.righe|length }}
+          {% if o.righe|selectattr('richiesta_extra')|selectattr('prodotto', 'none')|list %}<span class="chip chip-giallo ms-1" title="Contiene richieste fuori catalogo da gestire">+ altro</span>{% endif %}
+        </td>
+        <td style="min-width: 120px">
+          <div class="progress" style="height: 6px"><div class="progress-bar" style="width: {{ o.percentuale }}%"></div></div>
+          <div class="small text-muted mt-1">{{ o.righe_complete }}/{{ o.righe|length }}</div>
+        </td>
+        <td>{{ badge(o) }}</td>
+        <td class="text-end"><span class="btn btn-sm btn-{{ 'primary' if o.aperto else 'outline-secondary' }}">{{ 'Evadi' if o.aperto else 'Apri' }}</span></td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
   {% else %}
-    <tr><td colspan="6" class="text-center text-muted py-4">Nessun ordine.</td></tr>
-  {% endfor %}
-  </tbody>
-</table>
-</div></div>
+    {{ vuoto('inbox', 'Nessun ordine qui', 'Prova a cambiare filtro o ricerca.' if q or filtro != 'aperti' else 'Non ci sono ordini da evadere.') }}
+  {% endif %}
+</div>
+{{ paginazione(ordini) }}
 {% endblock %}

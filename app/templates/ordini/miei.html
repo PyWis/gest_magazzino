@@ -1,30 +1,46 @@
 {% extends "base.html" %}
-{% from "_macros.html" import badge %}
+{% from "_macros.html" import badge, intestazione, vuoto, paginazione %}
 {% block title %}I miei ordini{% endblock %}
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-3">
-  <h1 class="h3 mb-0">I miei ordini</h1>
-  <a class="btn btn-primary" href="{{ url_for('ordini.nuovo') }}"><i class="bi bi-plus-circle"></i> Nuovo ordine</a>
-</div>
-<div class="card"><div class="card-body p-0">
-<table class="table table-hover mb-0">
-  <thead><tr><th>#</th><th>Data</th><th>Articoli</th><th>Stato</th><th></th></tr></thead>
-  <tbody>
-  {% for o in ordini %}
-    <tr>
-      <td>{{ o.id }}</td>
-      <td>{{ o.creato_il|data }}</td>
-      <td class="small">{% for r in o.righe[:3] %}{{ r.nome }}{{ ', ' if not loop.last }}{% endfor %}{% if o.righe|length > 3 %} e altri {{ o.righe|length - 3 }}{% endif %}</td>
-      <td>{{ badge(o) }}</td>
-      <td class="text-end"><a class="btn btn-sm btn-outline-secondary" href="{{ url_for('ordini.dettaglio', oid=o.id) }}">Apri</a></td>
-    </tr>
-  {% else %}
-    <tr><td colspan="5" class="text-center text-muted py-5">
-      Non hai ancora fatto ordini.<br>
-      <a class="btn btn-primary mt-2" href="{{ url_for('ordini.nuovo') }}">Fai il primo ordine</a>
-    </td></tr>
+{% call intestazione('I miei ordini', 'Segui lo stato delle tue richieste al magazzino.') %}
+  <a class="btn btn-primary" href="{{ url_for('ordini.nuovo') }}"><i class="bi bi-plus-lg"></i> Nuovo ordine</a>
+{% endcall %}
+
+{% if ordini.items %}
+<div class="row g-3">
+  {% for o in ordini.items %}
+  <div class="col-md-6 col-xl-4">
+    <div class="card h-100">
+      <div class="card-body d-flex flex-column">
+        <div class="d-flex justify-content-between align-items-start mb-2">
+          <div>
+            <a class="stretched-link text-reset text-decoration-none fw-bold fs-5" href="{{ url_for('ordini.dettaglio', oid=o.id) }}">Ordine #{{ o.id }}</a>
+            <div class="small text-muted">{{ o.creato_il|data }} · {{ o.creato_il|tempo_fa }}</div>
+          </div>
+          {{ badge(o) }}
+        </div>
+        <ul class="list-unstyled small mb-3 flex-grow-1">
+          {% for r in o.righe[:3] %}
+            <li class="d-flex justify-content-between gap-2 py-1 border-bottom">
+              <span class="text-truncate">{% if r.completa %}<i class="bi bi-check-circle-fill text-success me-1"></i>{% else %}<i class="bi bi-circle text-muted me-1"></i>{% endif %}{{ r.nome }}</span>
+              <span class="text-muted text-nowrap">{{ r.quantita_richiesta|qta }} {{ r.unita.simbolo }}</span>
+            </li>
+          {% endfor %}
+          {% if o.righe|length > 3 %}<li class="text-muted pt-1">e altri {{ o.righe|length - 3 }} articoli</li>{% endif %}
+        </ul>
+        <div class="progress" style="height: 6px"><div class="progress-bar" style="width: {{ o.percentuale }}%"></div></div>
+        <div class="small text-muted mt-1">{{ o.righe_complete }} di {{ o.righe|length }} articoli consegnati</div>
+      </div>
+    </div>
+  </div>
   {% endfor %}
-  </tbody>
-</table>
-</div></div>
+</div>
+{{ paginazione(ordini) }}
+{% else %}
+<div class="card">
+  {% call vuoto('bag-plus', 'Non hai ancora fatto ordini', 'Scegli il materiale dal catalogo del magazzino: ti avviseremo quando è pronto.') %}
+    <a class="btn btn-primary" href="{{ url_for('ordini.nuovo') }}"><i class="bi bi-plus-lg"></i> Fai il primo ordine</a>
+  {% endcall %}
+</div>
+{% endif %}
 {% endblock %}

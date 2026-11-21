@@ -1,95 +1,124 @@
 {% extends "base.html" %}
+{% from "_macros.html" import intestazione %}
 {% block title %}{{ 'Ordine di spesa #' ~ spesa.id if spesa.id else 'Nuovo ordine di spesa' }}{% endblock %}
+{% block head %}<link href="{{ url_for('static', filename='vendor/tomselect/tom-select.bootstrap5.min.css') }}" rel="stylesheet">{% endblock %}
 {% block content %}
-<h1 class="h3 mb-3">{{ 'Modifica ordine di spesa #' ~ spesa.id if spesa.id else 'Nuovo ordine di spesa' }}</h1>
+{{ intestazione('Modifica ordine di spesa #' ~ spesa.id if spesa.id else 'Nuovo ordine di spesa', 'Bozza: puoi modificarla finché non la segni come inviata.',
+   url_for('spesa.dettaglio', sid=spesa.id) if spesa.id else url_for('spesa.index'), 'Ordine #' ~ spesa.id if spesa.id else 'Ordini di spesa') }}
 {% if spesa.ordine_origine %}
-<div class="alert alert-info">Creato per evadere l'<a href="{{ url_for('ordini.dettaglio', oid=spesa.ordine_origine_id) }}">ordine #{{ spesa.ordine_origine_id }}</a>.</div>
+<div class="alert alert-info"><i class="bi bi-link-45deg"></i>Creato per evadere l'<a href="{{ url_for('ordini.dettaglio', oid=spesa.ordine_origine_id) }}">ordine #{{ spesa.ordine_origine_id }}</a> di {{ spesa.ordine_origine.docente.nome_completo }}.</div>
 {% endif %}
 
-<form method="post">
+<form method="post" data-no-invio>
   <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
-  <div class="card mb-3"><div class="card-body row g-3">
-    <div class="col-md-6">
-      <label class="form-label">Fornitore</label>
-      <input class="form-control" name="fornitore" value="{{ request.form.get('fornitore', spesa.fornitore or '') }}" placeholder="es. Cartoleria Rossi">
+  <div class="card mb-3">
+    <div class="card-header"><h2><i class="bi bi-truck icona-titolo"></i>Fornitore</h2>
+      <a class="small" href="{{ url_for('spesa.fornitori') }}" target="_blank">Gestisci fornitori</a></div>
+    <div class="card-body row g-3">
+      {% set fsel = request.form.get('fornitore_id', spesa.fornitore_id|string if spesa.fornitore_id else '') %}
+      <div class="col-md-6">
+        <label class="form-label" for="fornitore_id">Fornitore</label>
+        <select class="form-select" id="fornitore_id" name="fornitore_id">
+          <option value="">— da decidere —</option>
+          {% for f in fornitori %}<option value="{{ f.id }}" {{ 'selected' if f.id|string == fsel }}>{{ f.nome }}</option>{% endfor %}
+          <option value="nuovo" {{ 'selected' if fsel == 'nuovo' }}>+ Nuovo fornitore…</option>
+        </select>
+        <input class="form-control mt-2 {{ '' if fsel == 'nuovo' else 'd-none' }}" id="fornitore_nuovo" name="fornitore_nuovo" placeholder="Nome del nuovo fornitore" value="{{ request.form.get('fornitore_nuovo', '') }}">
+      </div>
+      <div class="col-md-6">
+        <label class="form-label" for="note">Note</label>
+        <input class="form-control" id="note" name="note" value="{{ request.form.get('note', spesa.note or '') }}" placeholder="es. consegna al plesso centrale">
+      </div>
     </div>
-    <div class="col-md-6">
-      <label class="form-label">Note</label>
-      <input class="form-control" name="note" value="{{ request.form.get('note', spesa.note or '') }}">
-    </div>
-  </div></div>
+  </div>
 
-  <div class="card mb-3"><div class="card-body">
-    <div class="d-flex justify-content-between align-items-center mb-2">
-      <h2 class="h5 mb-0">Prodotti da acquistare</h2>
-      <a class="small" href="{{ url_for('prodotti.nuovo') }}" target="_blank">Il prodotto non esiste? Crealo (poi ricarica la pagina)</a>
+  <div class="card mb-3">
+    <div class="card-header"><h2><i class="bi bi-cart3 icona-titolo"></i>Prodotti da acquistare</h2>
+      <a class="small" href="{{ url_for('prodotti.nuovo') }}" target="_blank">Il prodotto non esiste? Crealo</a></div>
+    <div class="card-body">
+      <div class="row g-2 small text-muted fw-semibold d-none d-md-flex mb-1">
+        <div class="col-md-6">Prodotto</div><div class="col-md-2">Quantità</div><div class="col-md-3">Prezzo unitario (facolt.)</div>
+      </div>
+      <div id="righe"></div>
+      <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mt-3">
+        <button type="button" class="btn btn-outline-primary btn-sm" id="aggiungi"><i class="bi bi-plus-lg"></i> Aggiungi prodotto</button>
+        <div class="fs-5">Totale stimato: <strong id="totale">—</strong></div>
+      </div>
     </div>
-    <div id="righe"></div>
-    <div class="d-flex justify-content-between align-items-center">
-      <button type="button" class="btn btn-outline-primary btn-sm" id="aggiungi"><i class="bi bi-plus"></i> Aggiungi prodotto</button>
-      <div>Totale stimato: <strong id="totale">—</strong></div>
-    </div>
-  </div></div>
+  </div>
 
-  <button class="btn btn-primary">Salva bozza</button>
-  <a class="btn btn-link" href="{{ url_for('spesa.dettaglio', sid=spesa.id) if spesa.id else url_for('spesa.index') }}">Annulla</a>
+  <div class="d-flex gap-2">
+    <button class="btn btn-primary"><i class="bi bi-save"></i> Salva bozza</button>
+    <a class="btn btn-outline-secondary" href="{{ url_for('spesa.dettaglio', sid=spesa.id) if spesa.id else url_for('spesa.index') }}">Annulla</a>
+  </div>
 </form>
 
 <template id="tpl-riga">
-  <div class="riga row g-2 align-items-end mb-2">
+  <div class="riga row g-2 align-items-center mb-2">
     <div class="col-md-6">
-      <select class="form-select sel-prodotto" name="prodotto_id">
-        <option value="">— prodotto —</option>
-        {% for p in prodotti %}<option value="{{ p.id }}" data-simbolo="{{ p.unita.simbolo }}">{{ p.nome }} (in magazzino: {{ p.giacenza|qta }} {{ p.unita.simbolo }})</option>{% endfor %}
+      <select class="sel-prodotto" name="prodotto_id" placeholder="Cerca un prodotto…" autocomplete="off">
+        <option value="">Cerca un prodotto…</option>
+        {% for p in prodotti %}<option value="{{ p.id }}" data-simbolo="{{ p.unita.simbolo }}" data-disp="{{ p.giacenza|qta }}">{{ p.nome }}</option>{% endfor %}
       </select>
     </div>
-    <div class="col-md-2">
-      <div class="input-group"><input class="form-control inp-qta" name="quantita" inputmode="decimal" placeholder="Q.tà"><span class="input-group-text lbl-unita">—</span></div>
+    <div class="col-5 col-md-2">
+      <div class="input-group"><input class="form-control inp-qta" name="quantita" inputmode="decimal" placeholder="Q.tà" aria-label="Quantità"><span class="input-group-text lbl-unita">—</span></div>
     </div>
-    <div class="col-md-3">
-      <div class="input-group"><input class="form-control inp-prezzo" name="prezzo" inputmode="decimal" placeholder="Prezzo unit. (facolt.)"><span class="input-group-text">€</span></div>
+    <div class="col-5 col-md-3">
+      <div class="input-group"><input class="form-control inp-prezzo" name="prezzo" inputmode="decimal" placeholder="Prezzo" aria-label="Prezzo unitario"><span class="input-group-text">€</span></div>
     </div>
-    <div class="col-md-1 text-end"><button type="button" class="btn btn-outline-danger rimuovi"><i class="bi bi-trash"></i></button></div>
+    <div class="col-2 col-md-1 text-end"><button type="button" class="btn btn-outline-secondary rimuovi" aria-label="Rimuovi"><i class="bi bi-trash"></i></button></div>
   </div>
 </template>
 {% endblock %}
 
 {% block scripts %}
+<script src="{{ url_for('static', filename='vendor/tomselect/tom-select.complete.min.js') }}"></script>
 <script>
 (function () {
+  const sf = document.getElementById('fornitore_id'), nf = document.getElementById('fornitore_nuovo');
+  sf.addEventListener('change', () => { nf.classList.toggle('d-none', sf.value !== 'nuovo'); if (sf.value === 'nuovo') nf.focus(); });
+
   const contenitore = document.getElementById('righe');
   const tpl = document.getElementById('tpl-riga');
   const precedenti = {{ righe_input|tojson }};
+  const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const num = s => { s = (s || '').toString().trim(); if (!s) return NaN;
     s = (s.includes(',') && s.includes('.')) ? s.replace(/\./g, '').replace(',', '.') : s.replace(',', '.');
     return parseFloat(s); };
-  const fmt = v => (v === null || v === undefined || v === '') ? '' : String(v).replace('.', ',');
 
   function ricalcola() {
     let tot = 0, ok = false;
     contenitore.querySelectorAll('.riga').forEach(r => {
       const q = num(r.querySelector('.inp-qta').value), p = num(r.querySelector('.inp-prezzo').value);
       if (!isNaN(q) && !isNaN(p)) { tot += q * p; ok = true; }
-      const sel = r.querySelector('.sel-prodotto');
-      r.querySelector('.lbl-unita').textContent = sel.value ? sel.selectedOptions[0].dataset.simbolo : '—';
+      const ts = r.querySelector('select.sel-prodotto').tomselect, v = ts.getValue();
+      r.querySelector('.lbl-unita').textContent = v ? ts.options[v].simbolo : '—';
     });
     document.getElementById('totale').textContent = ok ? tot.toLocaleString('it-IT', {style: 'currency', currency: 'EUR'}) : '—';
   }
 
   function aggiungi(d) {
     const r = tpl.content.firstElementChild.cloneNode(true);
-    if (d) {
-      r.querySelector('.sel-prodotto').value = d.prodotto_id || '';
-      r.querySelector('.inp-qta').value = fmt(d.quantita);
-      r.querySelector('.inp-prezzo').value = fmt(d.prezzo);
-    }
-    r.addEventListener('input', ricalcola);
-    r.addEventListener('change', ricalcola);
-    r.querySelector('.rimuovi').addEventListener('click', () => { r.remove(); if (!contenitore.children.length) aggiungi(); ricalcola(); });
     contenitore.appendChild(r);
+    const sel = r.querySelector('.sel-prodotto');
+    if (d) {
+      sel.value = d.prodotto_id || '';
+      r.querySelector('.inp-qta').value = d.quantita || '';
+      r.querySelector('.inp-prezzo').value = d.prezzo || '';
+    }
+    const ts = new TomSelect(sel, {
+      refreshThrottle: 0, closeAfterSelect: true,
+      maxOptions: 500,
+      render: { option: (o, e) => '<div><span>' + e(o.text) + '</span><span class="chip">in magazzino ' + esc(o.disp) + ' ' + esc(o.simbolo) + '</span></div>' },
+      onChange: ricalcola,
+    });
+    r.addEventListener('input', ricalcola);
+    r.querySelector('.rimuovi').addEventListener('click', () => { ts.destroy(); r.remove(); if (!contenitore.children.length) aggiungi(); ricalcola(); });
+    return ts;
   }
 
-  document.getElementById('aggiungi').addEventListener('click', () => { aggiungi(); ricalcola(); });
+  document.getElementById('aggiungi').addEventListener('click', () => { aggiungi().focus(); ricalcola(); });
   if (precedenti.length) precedenti.forEach(aggiungi); else aggiungi();
   ricalcola();
 })();

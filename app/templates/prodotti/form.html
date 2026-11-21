@@ -1,68 +1,93 @@
 {% extends "base.html" %}
+{% from "_macros.html" import intestazione %}
 {% block title %}{{ 'Nuovo prodotto' if nuovo else 'Modifica prodotto' }}{% endblock %}
 {% block content %}
-<div class="row justify-content-center"><div class="col-lg-8">
-<h1 class="h3 mb-3">{{ 'Nuovo prodotto' if nuovo else 'Modifica «' ~ prodotto.nome ~ '»' }}</h1>
+<div class="row justify-content-center"><div class="col-lg-9 col-xl-8">
+{{ intestazione('Nuovo prodotto' if nuovo else 'Modifica «' ~ prodotto.nome ~ '»', none,
+   url_for('ordini.dettaglio', oid=riga.ordine_id) if riga else (url_for('prodotti.index') if nuovo else url_for('prodotti.scheda', pid=prodotto.id)),
+   ('Ordine #' ~ riga.ordine_id) if riga else ('Prodotti' if nuovo else prodotto.nome)) }}
 
 {% if riga %}
 <div class="alert alert-info">
-  Stai creando un prodotto dalla richiesta di <strong>{{ riga.ordine.docente.nome_completo }}</strong>
+  <i class="bi bi-stars"></i>Stai creando un prodotto dalla richiesta di <strong>{{ riga.ordine.docente.nome_completo }}</strong>
   (ordine #{{ riga.ordine_id }}): «{{ riga.descrizione_libera }}», {{ riga.quantita_richiesta|qta }} {{ riga.unita.simbolo }}.
   Dopo il salvataggio la richiesta sarà collegata a questo prodotto.
 </div>
 {% endif %}
 
-<div class="card"><div class="card-body">
 <form method="post">
   <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
   {% set f = request.form %}
-  <div class="row g-3">
-    <div class="col-md-8">
-      <label class="form-label">Nome</label>
-      <input class="form-control" name="nome" required value="{{ f.get('nome', prodotto.nome or '') }}">
-    </div>
-    <div class="col-md-4">
-      <label class="form-label">Categoria</label>
-      <input class="form-control" name="categoria" list="categorie" value="{{ f.get('categoria', prodotto.categoria or '') }}" placeholder="es. Cancelleria">
-      <datalist id="categorie">{% for c in categorie %}<option value="{{ c }}">{% endfor %}</datalist>
-    </div>
-    <div class="col-12">
-      <label class="form-label">Descrizione</label>
-      <textarea class="form-control" name="descrizione" rows="2">{{ f.get('descrizione', prodotto.descrizione or '') }}</textarea>
-    </div>
-    <div class="col-md-4">
-      <label class="form-label">Unità di misura</label>
-      {% set u_sel = f.get('unita_id', prodotto.unita_id|string) %}
-      <select class="form-select" name="unita_id" required>
-        <option value="">— scegli —</option>
-        {% for u in unita %}<option value="{{ u.id }}" {{ 'selected' if u.id|string == u_sel }}>{{ u.nome }} ({{ u.simbolo }})</option>{% endfor %}
-      </select>
-      <div class="form-text"><a href="{{ url_for('prodotti.unita') }}" target="_blank">Gestisci unità</a></div>
-    </div>
-    <div class="col-md-4">
-      <label class="form-label">Giacenza attuale</label>
-      <input class="form-control" name="giacenza" inputmode="decimal" value="{{ f.get('giacenza', prodotto.giacenza|qta) }}">
-    </div>
-    <div class="col-md-4">
-      <label class="form-label">Scorta minima</label>
-      <input class="form-control" name="scorta_minima" inputmode="decimal" value="{{ f.get('scorta_minima', prodotto.scorta_minima|qta) }}">
-      <div class="form-text">0 = nessun avviso</div>
-    </div>
-    {% if not nuovo %}
-    <div class="col-12">
-      <input type="hidden" name="attivo" value="0">
-      <div class="form-check form-switch">
-        <input class="form-check-input" type="checkbox" name="attivo" value="1" id="attivo" {{ 'checked' if prodotto.attivo }}>
-        <label class="form-check-label" for="attivo">Attivo (ordinabile dai docenti)</label>
+  <div class="card mb-3">
+    <div class="card-header"><h2><i class="bi bi-tag icona-titolo"></i>Dati del prodotto</h2></div>
+    <div class="card-body"><div class="row g-3">
+      <div class="col-md-8">
+        <label class="form-label" for="nome">Nome</label>
+        <input class="form-control" id="nome" name="nome" required value="{{ f.get('nome', prodotto.nome or '') }}">
       </div>
-    </div>
-    {% endif %}
+      <div class="col-md-4">
+        <label class="form-label" for="categoria">Categoria</label>
+        <input class="form-control" id="categoria" name="categoria" list="categorie" value="{{ f.get('categoria', prodotto.categoria or '') }}" placeholder="es. Cancelleria">
+        <datalist id="categorie">{% for c in categorie %}<option value="{{ c }}">{% endfor %}</datalist>
+      </div>
+      <div class="col-12">
+        <label class="form-label" for="descrizione">Descrizione</label>
+        <textarea class="form-control" id="descrizione" name="descrizione" rows="2">{{ f.get('descrizione', prodotto.descrizione or '') }}</textarea>
+      </div>
+    </div></div>
   </div>
-  <div class="mt-4 d-flex gap-2">
-    <button class="btn btn-primary">Salva</button>
+
+  <div class="card mb-3">
+    <div class="card-header"><h2><i class="bi bi-box-seam icona-titolo"></i>Quantità</h2></div>
+    <div class="card-body"><div class="row g-3">
+      <div class="col-md-4">
+        <label class="form-label" for="unita_id">Unità di misura</label>
+        {% set u_sel = f.get('unita_id', prodotto.unita_id|string) %}
+        <select class="form-select" id="unita_id" name="unita_id" required>
+          <option value="">— scegli —</option>
+          {% for u in unita %}<option value="{{ u.id }}" {{ 'selected' if u.id|string == u_sel }}>{{ u.nome }} ({{ u.simbolo }})</option>{% endfor %}
+        </select>
+        <div class="form-text"><a href="{{ url_for('prodotti.unita') }}" target="_blank">Gestisci unità</a></div>
+      </div>
+      <div class="col-md-4">
+        <label class="form-label" for="giacenza">{{ 'Giacenza iniziale' if nuovo else 'Giacenza attuale' }}</label>
+        {% if nuovo %}
+          <input class="form-control" id="giacenza" name="giacenza" inputmode="decimal" value="{{ f.get('giacenza', prodotto.giacenza|qta) }}">
+          <div class="form-text">Verrà registrata nello storico movimenti.</div>
+        {% else %}
+          <input class="form-control" id="giacenza" value="{{ prodotto.giacenza|qta }} {{ prodotto.unita.simbolo }}" disabled>
+          <div class="form-text">Si modifica con <a href="{{ url_for('prodotti.scheda', pid=prodotto.id) }}">Rettifica giacenza</a>.</div>
+        {% endif %}
+      </div>
+      <div class="col-md-4">
+        <label class="form-label" for="scorta_minima">Scorta minima</label>
+        <input class="form-control" id="scorta_minima" name="scorta_minima" inputmode="decimal" value="{{ f.get('scorta_minima', prodotto.scorta_minima|qta) }}">
+        <div class="form-text">Sotto questa soglia scatta l'avviso. 0 = nessun avviso.</div>
+      </div>
+      {% if riga %}
+      <div class="col-12">
+        <div class="border-tratteggiato p-3">
+          <label class="form-label" for="qta_riga">Quantità richiesta dal docente nell'unità del prodotto <span class="text-muted fw-normal">(facoltativa)</span></label>
+          <input class="form-control" id="qta_riga" name="qta_riga" inputmode="decimal" style="max-width: 14rem" value="{{ f.get('qta_riga', '') }}">
+          <div class="form-text">Se scegli un'unità diversa da «{{ riga.unita.simbolo }}», la quantità viene convertita in automatico quando possibile (es. ml → l); altrimenti scrivila qui.</div>
+        </div>
+      </div>
+      {% endif %}
+      {% if not nuovo %}
+      <div class="col-12">
+        <div class="form-check form-switch">
+          <input class="form-check-input" type="checkbox" name="attivo" value="1" id="attivo" {{ 'checked' if prodotto.attivo }}>
+          <label class="form-check-label" for="attivo">Attivo (ordinabile dai docenti)</label>
+        </div>
+      </div>
+      {% endif %}
+    </div></div>
+  </div>
+
+  <div class="d-flex gap-2">
+    <button class="btn btn-primary"><i class="bi bi-check-lg"></i> Salva</button>
     <a class="btn btn-outline-secondary" href="{{ url_for('ordini.dettaglio', oid=riga.ordine_id) if riga else url_for('prodotti.index') }}">Annulla</a>
   </div>
 </form>
-</div></div>
 </div></div>
 {% endblock %}

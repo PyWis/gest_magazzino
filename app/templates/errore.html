@@ -1,9 +1,12 @@
 {% extends "base.html" %}
 {% block title %}Errore {{ codice }}{% endblock %}
 {% block content %}
-<div class="text-center py-5">
-  <h1 class="display-4">{{ codice }}</h1>
-  <p class="lead">{{ messaggio }}</p>
-  <a href="{{ url_for('main.home') }}" class="btn btn-primary">Torna alla home</a>
+<div class="vuoto py-5">
+  <div class="icona" style="width:84px;height:84px;font-size:2.2rem;border-radius:24px">
+    <i class="bi bi-{{ {403: 'shield-lock', 404: 'signpost-split', 500: 'tools', 429: 'hourglass-split'}.get(codice, 'exclamation-circle') }}"></i>
+  </div>
+  <div class="display-5 fw-bold" style="color: var(--bs-primary)">{{ codice }}</div>
+  <p class="lead mt-2 mx-auto" style="max-width: 32rem">{{ messaggio }}</p>
+  <a href="{{ url_for('main.home') }}" class="btn btn-primary mt-2"><i class="bi bi-house"></i> Torna alla home</a>
 </div>
 {% endblock %}

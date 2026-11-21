@@ -1,24 +1,44 @@
 {% extends "base.html" %}
+{% from "_macros.html" import flash_messaggi %}
 {% block title %}Accedi{% endblock %}
-{% block content %}
-<div class="login-box">
-  <div class="card">
-    <div class="card-body p-4">
-      <h1 class="h4 mb-4 text-center"><i class="bi bi-box-seam"></i> Gestionale Magazzino</h1>
+{% block pagina_semplice %}
+<div class="login-wrap">
+  <section class="login-hero">
+    <div class="d-flex align-items-center gap-3">
+      <span class="brand-logo"><i class="bi bi-box-seam"></i></span>
+      <div class="brand-testo"><strong>Magazzino</strong><small>{{ NOME_SCUOLA }}</small></div>
+    </div>
+    <div>
+      <h2>Il materiale giusto, in classe, al momento giusto.</h2>
+      <p class="mt-3 mb-0">Ordina dal catalogo della scuola e segui le tue richieste fino alla consegna.</p>
+      <ul class="login-punti">
+        <li><i class="bi bi-bag-plus"></i> I docenti ordinano in pochi clic</li>
+        <li><i class="bi bi-box-arrow-up"></i> Il magazzino consegna e tiene traccia di tutto</li>
+        <li><i class="bi bi-truck"></i> Gli acquisti partono quando le scorte calano</li>
+      </ul>
+    </div>
+    <div class="piede small text-white-50">© {{ NOME_SCUOLA }}</div>
+  </section>
+  <section class="login-form">
+    <div class="login-box">
+      {{ flash_messaggi() }}
+      <h1 class="h3 mb-1">Bentornato</h1>
+      <p class="text-muted mb-4">Accedi con l'email della scuola.</p>
       <form method="post">
         <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
         <div class="mb-3">
           <label class="form-label" for="email">Email</label>
-          <input class="form-control" type="email" id="email" name="email" required autofocus
-                 value="{{ request.form.get('email', '') }}">
+          <input class="form-control" type="email" id="email" name="email" required autofocus autocomplete="username"
+                 placeholder="nome.cognome@scuola.it" value="{{ request.form.get('email', '') }}">
         </div>
         <div class="mb-4">
           <label class="form-label" for="password">Password</label>
-          <input class="form-control" type="password" id="password" name="password" required>
+          <input class="form-control" type="password" id="password" name="password" required autocomplete="current-password">
         </div>
-        <button class="btn btn-primary w-100">Accedi</button>
+        <button class="btn btn-primary btn-lg w-100">Accedi <i class="bi bi-arrow-right ms-1"></i></button>
       </form>
+      <p class="small text-muted mt-4 mb-0"><i class="bi bi-question-circle"></i> Password dimenticata? Chiedi a un amministratore del magazzino di reimpostarla.</p>
     </div>
-  </div>
+  </section>
 </div>
 {% endblock %}
