@@ -23,6 +23,13 @@ connessione a internet.
 **Primo accesso:** `admin@admin.test` / `admin`. Il sistema obbliga il superadmin a scegliere
 subito una nuova email e una nuova password: finché non lo fa non può usare nessun'altra pagina.
 
+### Pubblicazione su internet
+
+- [Hostinger (VPS)](docs/PUBBLICAZIONE_HOSTINGER.md): server tuo, dominio della scuola, HTTPS, backup automatici
+- [PythonAnywhere](docs/PUBBLICAZIONE_PYTHONANYWHERE.md): il modo più semplice, con piano gratuito
+
+Per le copie di sicurezza del database: `python scripts/backup.py [cartella] [copie_da_tenere]`.
+
 ### Uso in rete (più PC della scuola)
 
 ```bash
@@ -41,6 +48,8 @@ generata una e salvata in `instance/secret_key`). Per usare un altro database im
 | `DATABASE_URL` | Database diverso da SQLite |
 | `MAIL_SERVER`, `MAIL_PORT`, `MAIL_USERNAME`, `MAIL_PASSWORD`, `MAIL_FROM` | Server email per avvisare i docenti quando un ordine cambia stato. Se `MAIL_SERVER` è vuoto le email sono disattivate |
 | `MAIL_USE_TLS` / `MAIL_USE_SSL` | Tipo di connessione al server email (predefinito: STARTTLS) |
+| `TRUST_PROXY` | `1` se il programma sta dietro un proxy (nginx, PythonAnywhere): serve a leggere l'IP vero dei visitatori |
+| `COOKIE_SICURI` | `1` quando il sito è in HTTPS: il cookie di sessione viaggia solo cifrato |
 
 Esempio con Gmail / Google Workspace (serve una «password per le app»):
 `MAIL_SERVER=smtp.gmail.com MAIL_PORT=587 MAIL_USERNAME=magazzino@scuola.it MAIL_PASSWORD=...`

@@ -8,6 +8,7 @@ from flask_login import LoginManager
 from flask_migrate import Migrate, stamp, upgrade
 from sqlalchemy import exc as sa_exc
 from sqlalchemy import inspect
+from werkzeug.middleware.proxy_fix import ProxyFix
 
 from .models import UNITA_PREDEFINITE, Ruolo, Unita, Utente, db
 
@@ -60,6 +61,8 @@ def create_app(config=None):
         SQLALCHEMY_TRACK_MODIFICATIONS=False,
         SESSION_COOKIE_HTTPONLY=True,
         SESSION_COOKIE_SAMESITE="Lax",
+        # Da attivare quando il sito è servito in HTTPS: il cookie di sessione viaggia solo cifrato
+        SESSION_COOKIE_SECURE=_env_bool("COOKIE_SICURI"),
         NOME_SCUOLA=os.environ.get("NOME_SCUOLA", "Gestionale Magazzino"),
         # Email (facoltative): se MAIL_SERVER è vuoto le notifiche sono disattivate
         MAIL_SERVER=os.environ.get("MAIL_SERVER", ""),
@@ -72,6 +75,14 @@ def create_app(config=None):
     )
     if config:
         app.config.update(config)
+
+    # Dietro un proxy (nginx su VPS, PythonAnywhere...) l'IP vero del visitatore arriva
+    # nell'intestazione X-Forwarded-For: senza questo tutti sembrerebbero avere lo stesso IP
+    # e il blocco dopo troppi tentativi di login bloccherebbe l'intera scuola.
+    proxy = int(app.config.get("TRUST_PROXY") or os.environ.get("TRUST_PROXY") or 0)
+    app.config["TRUST_PROXY"] = proxy
+    if proxy:
+        app.wsgi_app = ProxyFix(app.wsgi_app, x_for=proxy, x_proto=proxy, x_host=proxy)
 
     db.init_app(app)
     login_manager.init_app(app)
