@@ -23,6 +23,13 @@ connessione a internet.
 **Primo accesso:** `admin@admin.test` / `admin`. Il sistema obbliga il superadmin a scegliere
 subito una nuova email e una nuova password: finché non lo fa non può usare nessun'altra pagina.
 
+### Pubblicazione su internet
+
+- [Hostinger (VPS)](docs/PUBBLICAZIONE_HOSTINGER.md): server tuo, dominio della scuola, HTTPS, backup automatici
+- [PythonAnywhere](docs/PUBBLICAZIONE_PYTHONANYWHERE.md): il modo più semplice, con piano gratuito
+
+Per le copie di sicurezza del database: `python scripts/backup.py [cartella] [copie_da_tenere]`.
+
 ### Uso in rete (più PC della scuola)
 
 ```bash

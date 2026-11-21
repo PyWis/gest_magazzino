@@ -3,7 +3,7 @@ from flask_login import current_user, login_required, login_user, logout_user
 
 from .. import SUPERADMIN_EMAIL_DEFAULT, SUPERADMIN_PASSWORD_DEFAULT
 from ..models import Utente, db
-from ..utils import limitatore_login, valida_email, valida_password
+from ..utils import ip_client, limitatore_login, valida_email, valida_password
 
 bp = Blueprint("auth", __name__)
 
@@ -15,7 +15,7 @@ def login():
     if request.method == "POST":
         email = request.form.get("email", "").strip().lower()
         password = request.form.get("password", "")
-        chiavi = (f"ip:{request.remote_addr}", f"email:{email}")
+        chiavi = (f"ip:{ip_client()}", f"email:{email}")
         attesa = limitatore_login.bloccato(*chiavi)
         if attesa:
             flash(f"Troppi tentativi falliti. Riprova tra {max(1, attesa // 60)} minuti.", "danger")

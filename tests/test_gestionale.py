@@ -311,3 +311,21 @@ def test_ip_reale_dietro_proxy(tmp_path):
                headers={"X-Forwarded-For": "203.0.113.7"})
     assert limitatore_login.bloccato("ip:203.0.113.7")
     assert not limitatore_login.bloccato("ip:127.0.0.1")
+
+
+def test_ip_reale_pythonanywhere(tmp_path):
+    """PythonAnywhere passa l'IP del visitatore in X-Real-IP."""
+    from app import create_app
+    from app.utils import limitatore_login
+    app = create_app({"TESTING": True, "TRUST_PROXY": 1,
+                      "SQLALCHEMY_DATABASE_URI": f"sqlite:///{tmp_path / 'p.db'}"})
+    limitatore_login._falliti.clear()
+    c = app.test_client()
+    c.get("/login")
+    with c.session_transaction() as s:
+        token = s.get("_csrf")
+    for _ in range(5):
+        c.post("/login", data={"_csrf": token, "email": "x@y.it", "password": "no"},
+               headers={"X-Real-IP": "198.51.100.9"})
+    assert limitatore_login.bloccato("ip:198.51.100.9")
+    assert not limitatore_login.bloccato("ip:127.0.0.1")

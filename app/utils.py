@@ -78,6 +78,13 @@ def valida_password(pw, pw2):
 
 # ---------------------------------------------------------------- protezione login
 
+def ip_client():
+    """IP del visitatore. Dietro un proxy fidato (TRUST_PROXY) usa X-Real-IP se presente
+    (es. PythonAnywhere); altrimenti l'IP già corretto da ProxyFix tramite X-Forwarded-For."""
+    if current_app.config.get("TRUST_PROXY") and request.headers.get("X-Real-IP"):
+        return request.headers["X-Real-IP"].strip()
+    return request.remote_addr
+
 class LimitatoreLogin:
     """Blocca un indirizzo IP / email dopo troppi tentativi falliti (in memoria)."""
 

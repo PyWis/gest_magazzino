@@ -80,6 +80,7 @@ def create_app(config=None):
     # nell'intestazione X-Forwarded-For: senza questo tutti sembrerebbero avere lo stesso IP
     # e il blocco dopo troppi tentativi di login bloccherebbe l'intera scuola.
     proxy = int(app.config.get("TRUST_PROXY") or os.environ.get("TRUST_PROXY") or 0)
+    app.config["TRUST_PROXY"] = proxy
     if proxy:
         app.wsgi_app = ProxyFix(app.wsgi_app, x_for=proxy, x_proto=proxy, x_host=proxy)
 
