@@ -1,54 +1,68 @@
 {% extends "base.html" %}
-{% from "_macros.html" import qta %}
-{% block title %}Magazzino{% endblock %}
+{% from "_macros.html" import qta, intestazione, vuoto, paginazione, livello %}
+{% block title %}Prodotti{% endblock %}
 {% block content %}
-<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
-  <h1 class="h3 mb-0">Magazzino</h1>
-  <div class="d-flex gap-2">
-    <a class="btn btn-outline-secondary" href="{{ url_for('prodotti.unita') }}"><i class="bi bi-rulers"></i> Unità di misura</a>
-    <a class="btn btn-primary" href="{{ url_for('prodotti.nuovo') }}"><i class="bi bi-plus-lg"></i> Nuovo prodotto</a>
-  </div>
-</div>
+{% call intestazione('Prodotti in magazzino', prodotti.total ~ ' prodotti' ~ (' trovati' if q or categoria or filtro else ' a catalogo')) %}
+  <a class="btn btn-outline-secondary" href="{{ url_for('prodotti.esporta_inventario', q=q, filtro=filtro, categoria=categoria) }}"><i class="bi bi-file-earmark-spreadsheet"></i> Esporta</a>
+  {% if n_sotto_scorta %}
+  <form method="post" action="{{ url_for('spesa.da_sotto_scorta') }}">
+    <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+    <button class="btn btn-outline-primary" title="Crea una bozza di ordine di spesa con tutti i prodotti sotto scorta"><i class="bi bi-cart-plus"></i> Riordina sotto scorta</button>
+  </form>
+  {% endif %}
+  <a class="btn btn-primary" href="{{ url_for('prodotti.nuovo') }}"><i class="bi bi-plus-lg"></i> Nuovo prodotto</a>
+{% endcall %}
 
-<div class="card mb-3"><div class="card-body">
+<div class="card mb-3"><div class="card-body py-3">
   <form class="row g-2 align-items-center" method="get">
-    <div class="col-md-5"><input class="form-control" name="q" value="{{ q }}" placeholder="Cerca per nome o categoria"></div>
-    <div class="col-md-4">
-      <select class="form-select" name="filtro" onchange="this.form.submit()">
+    <div class="col-md-5 cerca"><i class="bi bi-search"></i><input class="form-control" name="q" value="{{ q }}" placeholder="Cerca per nome, categoria o descrizione"></div>
+    <div class="col-6 col-md-3">
+      <select class="form-select" name="categoria" onchange="this.form.submit()" aria-label="Categoria">
+        <option value="">Tutte le categorie</option>
+        {% for c in categorie %}<option {{ 'selected' if c == categoria }}>{{ c }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="col-6 col-md-3">
+      <select class="form-select" name="filtro" onchange="this.form.submit()" aria-label="Filtro">
         <option value="">Tutti i prodotti attivi</option>
-        <option value="sotto_scorta" {{ 'selected' if filtro == 'sotto_scorta' }}>Solo sotto scorta ({{ n_sotto_scorta }})</option>
+        <option value="sotto_scorta" {{ 'selected' if filtro == 'sotto_scorta' }}>Sotto scorta ({{ n_sotto_scorta }})</option>
+        <option value="esauriti" {{ 'selected' if filtro == 'esauriti' }}>Esauriti</option>
         <option value="disattivati" {{ 'selected' if filtro == 'disattivati' }}>Disattivati</option>
       </select>
     </div>
-    <div class="col-md-3 d-flex gap-2">
-      <button class="btn btn-outline-primary">Cerca</button>
-      {% if n_sotto_scorta %}
-      <button class="btn btn-outline-danger" form="form-sotto-scorta" title="Crea una bozza di ordine di spesa con tutti i prodotti sotto scorta">
-        <i class="bi bi-cart-plus"></i> Riordina</button>
-      {% endif %}
-    </div>
-  </form>
-  <form id="form-sotto-scorta" method="post" action="{{ url_for('spesa.da_sotto_scorta') }}">
-    <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+    <div class="col-md-1 d-grid"><button class="btn btn-outline-primary">Cerca</button></div>
   </form>
 </div></div>
 
-<div class="card"><div class="card-body p-0">
-<table class="table table-hover mb-0">
-  <thead><tr><th>Prodotto</th><th>Categoria</th><th class="text-end">Giacenza</th><th class="text-end">Scorta min.</th><th></th></tr></thead>
-  <tbody>
-  {% for p in prodotti %}
-    <tr>
-      <td><strong>{{ p.nome }}</strong>{% if p.descrizione %}<div class="small text-muted">{{ p.descrizione }}</div>{% endif %}</td>
-      <td>{{ p.categoria }}</td>
-      <td class="text-end {{ 'text-danger fw-bold' if p.sotto_scorta }}">{{ qta(p.giacenza, p.unita) }}</td>
-      <td class="text-end">{{ qta(p.scorta_minima, p.unita) if p.scorta_minima else '—' }}</td>
-      <td class="text-end"><a class="btn btn-sm btn-outline-secondary" href="{{ url_for('prodotti.modifica', pid=p.id) }}">Modifica</a></td>
-    </tr>
+<div class="card">
+  {% if prodotti.items %}
+  <div class="table-responsive">
+  <table class="table table-hover">
+    <thead><tr><th>Prodotto</th><th>Categoria</th><th>Giacenza</th><th class="text-end">Scorta min.</th><th class="text-end">Da consegnare</th><th class="text-end">In arrivo</th><th></th></tr></thead>
+    <tbody>
+    {% for p in prodotti.items %}
+      <tr class="riga-link">
+        <td style="min-width: 14rem">
+          <a class="stretched-link" href="{{ url_for('prodotti.scheda', pid=p.id) }}">{{ p.nome }}</a>
+          {% if p.sotto_scorta %}<span class="chip chip-giallo ms-1">sotto scorta</span>{% endif %}
+          {% if p.descrizione %}<div class="small text-muted text-truncate" style="max-width: 22rem">{{ p.descrizione }}</div>{% endif %}
+        </td>
+        <td>{% if p.categoria %}<span class="chip">{{ p.categoria }}</span>{% endif %}</td>
+        <td>{{ livello(p) }}</td>
+        <td class="text-end text-nowrap">{{ qta(p.scorta_minima, p.unita) if p.scorta_minima else '—' }}</td>
+        <td class="text-end text-nowrap">{{ qta(domanda[p.id], p.unita) if domanda[p.id] else '—' }}</td>
+        <td class="text-end text-nowrap">{% if arrivo[p.id] %}<span class="chip chip-azzurro"><i class="bi bi-truck"></i>{{ arrivo[p.id]|qta }} {{ p.unita.simbolo }}</span>{% else %}—{% endif %}</td>
+        <td class="text-end"><i class="bi bi-chevron-right text-muted"></i></td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
   {% else %}
-    <tr><td colspan="5" class="text-center text-muted py-4">Nessun prodotto trovato.</td></tr>
-  {% endfor %}
-  </tbody>
-</table>
-</div></div>
+    {% call vuoto('boxes', 'Nessun prodotto trovato', 'Cambia i filtri oppure aggiungi un nuovo prodotto al catalogo.') %}
+      <a class="btn btn-primary" href="{{ url_for('prodotti.nuovo') }}"><i class="bi bi-plus-lg"></i> Nuovo prodotto</a>
+    {% endcall %}
+  {% endif %}
+</div>
+{{ paginazione(prodotti) }}
 {% endblock %}

@@ -1,64 +1,103 @@
 {% extends "base.html" %}
-{% from "_macros.html" import badge %}
+{% from "_macros.html" import badge, intestazione, qta %}
 {% block title %}Ordine di spesa #{{ spesa.id }}{% endblock %}
 {% block content %}
-<div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-3">
-  <div>
-    <h1 class="h3 mb-1">Ordine di spesa #{{ spesa.id }} {{ badge(spesa) }}</h1>
-    <div class="text-muted">
-      Creato il {{ spesa.creato_il|data }} da {{ spesa.creato_da.nome_completo }}
-      {% if spesa.inviato_il %} · inviato il {{ spesa.inviato_il|data }}{% endif %}
-      {% if spesa.ricevuto_il %} · ricevuto il {{ spesa.ricevuto_il|data }}{% endif %}
-    </div>
+{% call intestazione('Ordine di spesa #' ~ spesa.id, none, url_for('spesa.index'), 'Ordini di spesa') %}
+  <div class="dropdown">
+    <button class="btn btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false"><i class="bi bi-download"></i> Esporta</button>
+    <ul class="dropdown-menu dropdown-menu-end">
+      <li><a class="dropdown-item" href="{{ url_for('spesa.stampa', sid=spesa.id) }}" target="_blank"><i class="bi bi-file-earmark-pdf me-2"></i>Documento per il fornitore (stampa / PDF)</a></li>
+      <li><a class="dropdown-item" href="{{ url_for('spesa.esporta', sid=spesa.id) }}"><i class="bi bi-file-earmark-spreadsheet me-2"></i>Foglio Excel (CSV)</a></li>
+      {% if mailto %}<li><a class="dropdown-item" href="{{ mailto }}"><i class="bi bi-envelope me-2"></i>Scrivi email al fornitore</a></li>{% endif %}
+    </ul>
   </div>
-  <div class="d-flex flex-wrap gap-2 d-print-none">
-    <button class="btn btn-outline-secondary" onclick="window.print()"><i class="bi bi-printer"></i> Stampa</button>
-    {% if spesa.modificabile %}
-      <a class="btn btn-outline-primary" href="{{ url_for('spesa.modifica', sid=spesa.id) }}"><i class="bi bi-pencil"></i> Modifica</a>
+  {% if spesa.modificabile %}
+    <a class="btn btn-outline-primary" href="{{ url_for('spesa.modifica', sid=spesa.id) }}"><i class="bi bi-pencil"></i> Modifica</a>
+  {% endif %}
+  <form method="post" action="{{ url_for('spesa.cambia_stato', sid=spesa.id) }}" class="d-flex gap-2">
+    <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+    {% if spesa.stato == StatoSpesa.BOZZA %}
+      <button class="btn btn-primary" name="azione" value="invia"><i class="bi bi-send"></i> Segna come inviato</button>
     {% endif %}
-    <form method="post" action="{{ url_for('spesa.cambia_stato', sid=spesa.id) }}" class="d-flex gap-2">
-      <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
-      {% if spesa.stato == StatoSpesa.BOZZA %}
-        <button class="btn btn-primary" name="azione" value="invia">Segna come inviato</button>
-      {% endif %}
-      {% if spesa.stato in [StatoSpesa.BOZZA, StatoSpesa.INVIATO] %}
-        <button class="btn btn-success" name="azione" value="ricevi"
-                onclick="return confirm('Confermi di aver ricevuto la merce? Le quantità verranno caricate in magazzino.')">
-          <i class="bi bi-box-arrow-in-down"></i> Merce ricevuta</button>
-        <button class="btn btn-outline-danger" name="azione" value="annulla"
-                onclick="return confirm('Annullare questo ordine di spesa?')">Annulla</button>
-      {% endif %}
-    </form>
+    {% if spesa.stato in [StatoSpesa.BOZZA, StatoSpesa.INVIATO] %}
+      <button class="btn btn-outline-danger" name="azione" value="annulla" data-conferma="Annullare questo ordine di spesa?">Annulla</button>
+    {% endif %}
+    {% if spesa.stato == StatoSpesa.PARZIALE %}
+      <button class="btn btn-outline-secondary" name="azione" value="chiudi" data-conferma="Chiudere l'ordine? La merce mancante non sarà più considerata in arrivo.">Chiudi (il resto non arriverà)</button>
+    {% endif %}
+  </form>
+{% endcall %}
+
+<div class="row g-3 mb-3">
+  <div class="col-lg-8">
+    <div class="card h-100"><div class="card-body">
+      <dl class="row dl-info mb-0">
+        <div class="col-sm-6"><dt>Stato</dt><dd>{{ badge(spesa, true) }}</dd></div>
+        <div class="col-sm-6"><dt>Fornitore</dt><dd>
+          {% if spesa.fornitore %}{{ spesa.fornitore.nome }}
+            {% if spesa.fornitore.email %}<div class="small text-muted"><i class="bi bi-envelope"></i> {{ spesa.fornitore.email }}</div>{% endif %}
+            {% if spesa.fornitore.telefono %}<div class="small text-muted"><i class="bi bi-telephone"></i> {{ spesa.fornitore.telefono }}</div>{% endif %}
+          {% else %}{{ spesa.fornitore_testo or '—' }}{% endif %}</dd></div>
+        <div class="col-sm-6"><dt>Creato</dt><dd>{{ spesa.creato_il|data }} · {{ spesa.creato_da.nome_completo }}</dd></div>
+        <div class="col-sm-6"><dt>Inviato / ricevuto</dt><dd>{{ spesa.inviato_il|data or '—' }} / {{ spesa.ricevuto_il|data or '—' }}</dd></div>
+        {% if spesa.note %}<div class="col-12"><dt>Note</dt><dd class="mb-0">{{ spesa.note }}</dd></div>{% endif %}
+      </dl>
+    </div></div>
+  </div>
+  <div class="col-lg-4">
+    <div class="card h-100 stat">
+      <span class="stat-icona tono-blu"><i class="bi bi-currency-euro"></i></span>
+      <div><div class="stat-etichetta">Totale stimato</div><div class="stat-numero">{{ spesa.totale|euro if spesa.totale else '—' }}</div>
+        {% if spesa.ordine_origine %}<div class="stat-nota">Per l'<a href="{{ url_for('ordini.dettaglio', oid=spesa.ordine_origine_id) }}">ordine #{{ spesa.ordine_origine_id }}</a> di {{ spesa.ordine_origine.docente.nome_completo }}</div>{% endif %}
+      </div>
+    </div>
   </div>
 </div>
 
-<div class="card mb-3"><div class="card-body">
-  <div class="row">
-    <div class="col-md-6"><strong>Fornitore:</strong> {{ spesa.fornitore or '—' }}</div>
-    <div class="col-md-6"><strong>Note:</strong> {{ spesa.note or '—' }}</div>
+<form method="post" action="{{ url_for('spesa.ricevi', sid=spesa.id) }}" data-no-invio>
+<input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+<div class="card">
+  <div class="card-header"><h2><i class="bi bi-cart3 icona-titolo"></i>Prodotti</h2>
+    {% if spesa.ricevibile %}<span class="small text-muted d-none d-md-inline">Indica quanto è arrivato davvero: puoi ricevere anche in più volte</span>{% endif %}</div>
+  <div class="table-responsive">
+  <table class="table">
+    <thead><tr><th>Prodotto</th><th class="text-end">Ordinato</th><th class="text-end">Ricevuto</th><th class="text-end">Prezzo unit.</th><th class="text-end">Subtotale</th>
+      {% if spesa.ricevibile %}<th class="d-print-none">Arrivato ora</th>{% endif %}</tr></thead>
+    <tbody>
+    {% for r in spesa.righe %}
+      <tr class="{{ 'riga-completa' if r.quantita_ricevuta and r.da_ricevere <= 0 }}">
+        <td><a class="fw-semibold text-reset text-decoration-none" href="{{ url_for('prodotti.scheda', pid=r.prodotto_id) }}">{{ r.prodotto.nome }}</a></td>
+        <td class="text-end text-nowrap">{{ qta(r.quantita, r.prodotto.unita) }}</td>
+        <td class="text-end text-nowrap">{% if r.quantita_ricevuta %}{{ qta(r.quantita_ricevuta, r.prodotto.unita) }}{% else %}<span class="text-muted">—</span>{% endif %}</td>
+        <td class="text-end text-nowrap">{{ r.prezzo_unitario|euro }}</td>
+        <td class="text-end text-nowrap">{{ r.subtotale|euro }}</td>
+        {% if spesa.ricevibile %}
+        <td class="d-print-none">
+          {% if r.da_ricevere > 0 %}
+          <div class="input-group input-group-sm input-qta">
+            <input class="form-control" name="ricevuto_{{ r.id }}" inputmode="decimal" value="{{ r.da_ricevere|qta }}" aria-label="Quantità arrivata">
+            <span class="input-group-text">{{ r.prodotto.unita.simbolo }}</span>
+          </div>
+          {% else %}<span class="text-success small fw-semibold"><i class="bi bi-check2-all"></i> ricevuto</span>{% endif %}
+        </td>
+        {% endif %}
+      </tr>
+    {% endfor %}
+    </tbody>
+    {% if spesa.totale %}
+    <tfoot><tr><th colspan="4" class="text-end">Totale</th><th class="text-end">{{ spesa.totale|euro }}</th>{% if spesa.ricevibile %}<th></th>{% endif %}</tr></tfoot>
+    {% endif %}
+  </table>
   </div>
-  {% if spesa.ordine_origine %}
-    <div class="mt-2 d-print-none">Per l'<a href="{{ url_for('ordini.dettaglio', oid=spesa.ordine_origine_id) }}">ordine #{{ spesa.ordine_origine_id }}</a> di {{ spesa.ordine_origine.docente.nome_completo }}</div>
+  {% if spesa.ricevibile %}
+  <div class="card-body border-top d-flex flex-wrap align-items-center gap-3 d-print-none">
+    <button class="btn btn-primary" data-conferma="Confermi l'arrivo della merce? Le quantità indicate verranno caricate in magazzino."><i class="bi bi-box-arrow-in-down"></i> Registra merce ricevuta</button>
+    <div class="form-check">
+      <input class="form-check-input" type="checkbox" name="chiudi" value="1" id="chiudi">
+      <label class="form-check-label small" for="chiudi">Chiudi l'ordine anche se manca qualcosa (il resto non arriverà)</label>
+    </div>
+  </div>
   {% endif %}
-</div></div>
-
-<div class="card"><div class="card-body p-0">
-<table class="table mb-0">
-  <thead><tr><th>Prodotto</th><th class="text-end">Quantità</th><th class="text-end">Prezzo unit.</th><th class="text-end">Subtotale</th></tr></thead>
-  <tbody>
-  {% for r in spesa.righe %}
-    <tr>
-      <td>{{ r.prodotto.nome }}</td>
-      <td class="text-end">{{ r.quantita|qta }} {{ r.prodotto.unita.simbolo }}</td>
-      <td class="text-end">{{ r.prezzo_unitario|euro }}</td>
-      <td class="text-end">{{ r.subtotale|euro }}</td>
-    </tr>
-  {% endfor %}
-  </tbody>
-  {% if spesa.totale %}
-  <tfoot><tr><th colspan="3" class="text-end">Totale</th><th class="text-end">{{ spesa.totale|euro }}</th></tr></tfoot>
-  {% endif %}
-</table>
-</div></div>
-<div class="mt-3 d-print-none"><a href="{{ url_for('spesa.index') }}">&larr; Torna agli ordini di spesa</a></div>
+</div>
+</form>
 {% endblock %}

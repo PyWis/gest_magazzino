@@ -1,105 +1,161 @@
 {% extends "base.html" %}
+{% from "_macros.html" import intestazione %}
 {% block title %}Nuovo ordine{% endblock %}
+{% block head %}<link href="{{ url_for('static', filename='vendor/tomselect/tom-select.bootstrap5.min.css') }}" rel="stylesheet">{% endblock %}
 {% block content %}
-<h1 class="h3 mb-1">Nuovo ordine</h1>
-<p class="text-muted">Scegli gli articoli dal magazzino. Se quello che ti serve non c'è, scegli <strong>«Altro…»</strong> e descrivilo.</p>
+{{ intestazione('Nuovo ordine', 'Cerca gli articoli nel catalogo del magazzino. Se quello che ti serve non c\'è, scegli «Altro…» e descrivilo.', url_for('ordini.miei'), 'I miei ordini') }}
 
-<form method="post" id="form-ordine">
+<form method="post" id="form-ordine" data-no-invio>
   <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
-  <div class="card mb-3"><div class="card-body">
-    <div id="righe"></div>
-    <button type="button" class="btn btn-outline-primary btn-sm" id="aggiungi"><i class="bi bi-plus"></i> Aggiungi articolo</button>
-  </div></div>
-
-  <div class="card mb-3"><div class="card-body">
-    <label class="form-label" for="note">Note per il magazzino (facoltative)</label>
-    <textarea class="form-control" id="note" name="note" rows="2" placeholder="es. serve entro venerdì per il laboratorio di chimica">{{ note }}</textarea>
-  </div></div>
-
-  <button class="btn btn-primary btn-lg"><i class="bi bi-send"></i> Invia ordine</button>
-  <a class="btn btn-link" href="{{ url_for('ordini.miei') }}">Annulla</a>
+  <div class="row g-3">
+    <div class="col-xl-8">
+      <div class="card">
+        <div class="card-header">
+          <h2><i class="bi bi-bag icona-titolo"></i>Articoli</h2>
+          <span class="small text-muted" id="conteggio"></span>
+        </div>
+        <div class="card-body">
+          <div id="righe" class="pt-2"></div>
+          <button type="button" class="btn btn-outline-primary w-100 border-tratteggiato py-2" id="aggiungi"><i class="bi bi-plus-lg"></i> Aggiungi un altro articolo</button>
+        </div>
+      </div>
+    </div>
+    <div class="col-xl-4">
+      <div class="card" style="position: sticky; top: 1rem">
+        <div class="card-header"><h2><i class="bi bi-chat-left-text icona-titolo"></i>Note e invio</h2></div>
+        <div class="card-body">
+          <label class="form-label" for="note">Note per il magazzino <span class="text-muted fw-normal">(facoltative)</span></label>
+          <textarea class="form-control mb-3" id="note" name="note" rows="3" placeholder="es. serve entro venerdì per il laboratorio di chimica">{{ note }}</textarea>
+          <button class="btn btn-primary btn-lg w-100"><i class="bi bi-send"></i> Invia ordine</button>
+          <a class="btn btn-link w-100 mt-1 text-muted" href="{{ url_for('ordini.miei') }}">Annulla</a>
+          <div class="small text-muted mt-2"><i class="bi bi-info-circle"></i> Potrai annullarlo finché il magazzino non lo prende in carico.</div>
+        </div>
+      </div>
+    </div>
+  </div>
 </form>
 
 <template id="tpl-riga">
-  <div class="riga-ordine row g-2 align-items-end border-bottom pb-3 mb-3">
-    <div class="col-md-5">
+  <div class="riga-ordine row g-2 align-items-end">
+    <span class="numero"></span>
+    <div class="col-md-7">
       <label class="form-label small">Articolo</label>
-      <select class="form-select sel-prodotto" name="prodotto_id">
-        <option value="">— scegli un articolo —</option>
-        {% for p in prodotti %}
-          <option value="{{ p.id }}" data-simbolo="{{ p.unita.simbolo }}">
-            {{ p.nome }}{% if p.categoria %} · {{ p.categoria }}{% endif %}
-            {% if p.giacenza <= 0 %}(esaurito){% else %}(disp. {{ p.giacenza|qta }} {{ p.unita.simbolo }}){% endif %}
-          </option>
+      <select class="sel-prodotto" name="prodotto_id" placeholder="Cerca un articolo…" autocomplete="off">
+        <option value="">Cerca un articolo…</option>
+        {% for categoria, gruppo in prodotti|groupby('categoria') %}
+          <optgroup label="{{ categoria or 'Senza categoria' }}">
+          {% for p in gruppo %}
+            <option value="{{ p.id }}" data-simbolo="{{ p.unita.simbolo }}" data-disp="{{ p.giacenza|qta }}" data-esaurito="{{ 1 if p.giacenza <= 0 else 0 }}">{{ p.nome }}</option>
+          {% endfor %}
+          </optgroup>
         {% endfor %}
-        <option value="altro">Altro… (non presente in magazzino)</option>
+        <optgroup label="Non è a catalogo?">
+          <option value="altro" data-altro="1">Altro… (descrivi tu l'articolo)</option>
+        </optgroup>
       </select>
     </div>
-    <div class="col-md-3">
+    <div class="col-8 col-md-4">
       <label class="form-label small">Quantità</label>
       <div class="input-group">
         <input class="form-control inp-qta" name="quantita" inputmode="decimal" placeholder="0">
         <span class="input-group-text lbl-unita">—</span>
       </div>
     </div>
-    <div class="col-md-1 text-end">
-      <button type="button" class="btn btn-outline-danger rimuovi" title="Rimuovi"><i class="bi bi-trash"></i></button>
+    <div class="col-4 col-md-1 text-end">
+      <button type="button" class="btn btn-outline-secondary rimuovi" title="Rimuovi riga" aria-label="Rimuovi riga"><i class="bi bi-trash"></i></button>
     </div>
     <div class="col-md-8 campo-altro">
       <label class="form-label small">Descrivi cosa ti serve</label>
       <input class="form-control inp-descrizione" name="descrizione" maxlength="255" placeholder="es. Alcol etilico denaturato 90°">
     </div>
-    <div class="col-md-3 campo-altro">
+    <div class="col-md-4 campo-altro">
       <label class="form-label small">Unità di misura</label>
       <select class="form-select sel-unita" name="unita_id">
         <option value="">— unità —</option>
         {% for u in unita %}<option value="{{ u.id }}" data-simbolo="{{ u.simbolo }}">{{ u.nome }} ({{ u.simbolo }})</option>{% endfor %}
       </select>
     </div>
+    <div class="col-12 small disp-info text-muted"></div>
   </div>
 </template>
 {% endblock %}
 
 {% block scripts %}
+<script src="{{ url_for('static', filename='vendor/tomselect/tom-select.complete.min.js') }}"></script>
 <script>
 (function () {
   const contenitore = document.getElementById('righe');
   const tpl = document.getElementById('tpl-riga');
   const precedenti = {{ righe_input|tojson }};
+  const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
-  function aggiornaRiga(riga) {
-    const sel = riga.querySelector('.sel-prodotto');
-    const altro = sel.value === 'altro';
+  function chipDisp(d) {
+    if (!d || d.altro) return '';
+    return d.esaurito === '1'
+      ? '<span class="chip chip-giallo">esaurito</span>'
+      : '<span class="chip chip-azzurro">disp. ' + esc(d.disp) + ' ' + esc(d.simbolo) + '</span>';
+  }
+
+  function numera() {
+    const righe = contenitore.querySelectorAll('.riga-ordine');
+    righe.forEach((r, i) => r.querySelector('.numero').textContent = i + 1);
+    document.getElementById('conteggio').textContent = righe.length === 1 ? '1 articolo' : righe.length + ' articoli';
+  }
+
+  function aggiornaRiga(riga, ts) {
+    const val = ts.getValue();
+    const altro = val === 'altro';
     riga.classList.toggle('altro', altro);
-    let simbolo = '—';
+    let simbolo = '—', info = '';
     if (altro) {
       const u = riga.querySelector('.sel-unita');
       if (u.value) simbolo = u.selectedOptions[0].dataset.simbolo;
-    } else if (sel.value) {
-      simbolo = sel.selectedOptions[0].dataset.simbolo;
+      info = '<i class="bi bi-info-circle"></i> Il magazzino valuterà la richiesta e, se serve, la acquisterà.';
+    } else if (val) {
+      const d = ts.options[val];
+      simbolo = d.simbolo;
+      info = d.esaurito === '1'
+        ? '<i class="bi bi-exclamation-triangle text-warning"></i> Al momento è esaurito: puoi ordinarlo lo stesso, verrà riacquistato.'
+        : 'Disponibili in magazzino: <strong>' + esc(d.disp) + ' ' + esc(d.simbolo) + '</strong>';
     }
     riga.querySelector('.lbl-unita').textContent = simbolo;
+    riga.querySelector('.disp-info').innerHTML = info;
   }
 
   function aggiungi(dati) {
     const riga = tpl.content.firstElementChild.cloneNode(true);
+    contenitore.appendChild(riga);
+    const sel = riga.querySelector('.sel-prodotto');
     if (dati) {
-      riga.querySelector('.sel-prodotto').value = dati.prodotto_id || '';
+      sel.value = dati.prodotto_id || '';
       riga.querySelector('.inp-qta').value = dati.quantita || '';
       riga.querySelector('.inp-descrizione').value = dati.descrizione || '';
       riga.querySelector('.sel-unita').value = dati.unita_id || '';
     }
-    riga.querySelector('.sel-prodotto').addEventListener('change', () => aggiornaRiga(riga));
-    riga.querySelector('.sel-unita').addEventListener('change', () => aggiornaRiga(riga));
-    riga.querySelector('.rimuovi').addEventListener('click', () => {
-      riga.remove();
-      if (!contenitore.children.length) aggiungi();
+    const ts = new TomSelect(sel, {
+      refreshThrottle: 0, closeAfterSelect: true,
+      maxOptions: 500,
+      searchField: ['text', 'optgroup'],
+      lockOptgroupOrder: true,
+      render: {
+        option: (d, e) => '<div' + (d.altro ? ' class="opzione-altro"' : '') + '><span>' + e(d.text) + '</span>' + chipDisp(d) + '</div>',
+        item: (d, e) => '<div>' + e(d.text) + '</div>',
+        no_results: () => '<div class="no-results p-2 text-muted">Nessun articolo trovato: scegli «Altro…» in fondo.</div>',
+      },
+      onChange: () => { aggiornaRiga(riga, ts); if (ts.getValue() && ts.getValue() !== 'altro') riga.querySelector('.inp-qta').focus(); },
     });
-    contenitore.appendChild(riga);
-    aggiornaRiga(riga);
+    riga.querySelector('.sel-unita').addEventListener('change', () => aggiornaRiga(riga, ts));
+    riga.querySelector('.rimuovi').addEventListener('click', () => {
+      ts.destroy(); riga.remove();
+      if (!contenitore.children.length) aggiungi();
+      numera();
+    });
+    aggiornaRiga(riga, ts);
+    numera();
+    return ts;
   }
 
-  document.getElementById('aggiungi').addEventListener('click', () => aggiungi());
+  document.getElementById('aggiungi').addEventListener('click', () => aggiungi().focus());
   if (precedenti.length) precedenti.forEach(aggiungi); else aggiungi();
 })();
 </script>

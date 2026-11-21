@@ -1,9 +1,9 @@
-from flask import Blueprint, flash, redirect, render_template, request, session, url_for
+from flask import Blueprint, current_app, flash, redirect, render_template, request, session, url_for
 from flask_login import current_user, login_required, login_user, logout_user
 
 from .. import SUPERADMIN_EMAIL_DEFAULT, SUPERADMIN_PASSWORD_DEFAULT
 from ..models import Utente, db
-from ..utils import valida_email, valida_password
+from ..utils import limitatore_login, valida_email, valida_password
 
 bp = Blueprint("auth", __name__)
 
@@ -15,11 +15,17 @@ def login():
     if request.method == "POST":
         email = request.form.get("email", "").strip().lower()
         password = request.form.get("password", "")
+        chiavi = (f"ip:{request.remote_addr}", f"email:{email}")
+        attesa = limitatore_login.bloccato(*chiavi)
+        if attesa:
+            flash(f"Troppi tentativi falliti. Riprova tra {max(1, attesa // 60)} minuti.", "danger")
+            return render_template("auth/login.html"), 429
         utente = Utente.query.filter_by(email=email).first()
         if utente and utente.check_password(password):
             if not utente.attivo:
                 flash("Il tuo account è disattivato. Contatta un amministratore.", "danger")
             else:
+                limitatore_login.reset(*chiavi)
                 session.pop("_csrf", None)
                 login_user(utente)
                 prossima = request.args.get("next", "")
@@ -27,6 +33,7 @@ def login():
                     prossima = url_for("main.home")
                 return redirect(prossima)
         else:
+            limitatore_login.fallito(*chiavi)
             flash("Email o password non corretti.", "danger")
     return render_template("auth/login.html")
 
@@ -84,6 +91,11 @@ def primo_accesso():
 @bp.route("/profilo", methods=["GET", "POST"])
 @login_required
 def profilo():
+    if request.method == "POST" and request.form.get("azione") == "notifiche":
+        current_user.notifiche_email = request.form.get("notifiche_email") == "1"
+        db.session.commit()
+        flash("Preferenze salvate.", "success")
+        return redirect(url_for("auth.profilo"))
     if request.method == "POST":
         attuale = request.form.get("password_attuale", "")
         pw = request.form.get("password", "")
@@ -97,4 +109,4 @@ def profilo():
             db.session.commit()
             flash("Password aggiornata.", "success")
             return redirect(url_for("auth.profilo"))
-    return render_template("auth/profilo.html")
+    return render_template("auth/profilo.html", email_attive=bool(current_app.config["MAIL_SERVER"]))

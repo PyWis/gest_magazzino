@@ -1,8 +1,9 @@
 from flask import Blueprint, abort, flash, redirect, render_template, request, url_for
 from flask_login import current_user
+from sqlalchemy import or_
 
 from ..models import Ruolo, Utente, db
-from ..utils import admin_richiesto, valida_email, valida_password
+from ..utils import admin_richiesto, pagina, valida_email, valida_password
 
 bp = Blueprint("utenti", __name__, url_prefix="/utenti")
 
@@ -26,8 +27,14 @@ def index():
     query = Utente.query
     if not current_user.is_superadmin:
         query = query.filter_by(ruolo=Ruolo.DOCENTE)
-    utenti = query.order_by(Utente.ruolo.desc(), Utente.cognome, Utente.nome).all()
-    return render_template("utenti/index.html", utenti=utenti, puo_gestire=puo_gestire)
+    cerca = request.args.get("q", "").strip()
+    if cerca:
+        like = f"%{cerca}%"
+        query = query.filter(or_(Utente.nome.ilike(like), Utente.cognome.ilike(like),
+                                 Utente.email.ilike(like)))
+    utenti = (query.order_by(Utente.ruolo.desc(), Utente.cognome, Utente.nome)
+              .paginate(page=pagina(), per_page=50))
+    return render_template("utenti/index.html", utenti=utenti, puo_gestire=puo_gestire, q=cerca)
 
 
 def _leggi_form(utente, nuovo):

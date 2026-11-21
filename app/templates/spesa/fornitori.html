@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% from "_macros.html" import intestazione, vuoto %}
+{% block title %}Fornitori{% endblock %}
+{% block content %}
+{% call intestazione('Fornitori', 'Contatti dei fornitori a cui inviare gli ordini di spesa.', url_for('spesa.index'), 'Ordini di spesa') %}
+  <a class="btn btn-primary" href="{{ url_for('spesa.fornitore') }}"><i class="bi bi-plus-lg"></i> Nuovo fornitore</a>
+{% endcall %}
+{% if elenco %}
+<div class="row g-3">
+  {% for f in elenco %}
+  <div class="col-md-6 col-xl-4">
+    <div class="card h-100 {{ 'opacity-50' if not f.attivo }}"><div class="card-body">
+      <div class="d-flex align-items-start gap-3">
+        <span class="stat-icona tono-azzurro"><i class="bi bi-truck"></i></span>
+        <div class="flex-grow-1" style="min-width:0">
+          <a class="stretched-link fw-semibold fs-6 text-reset text-decoration-none" href="{{ url_for('spesa.fornitore', fid=f.id) }}">{{ f.nome }}</a>
+          {% if not f.attivo %}<span class="chip ms-1">disattivato</span>{% endif %}
+          {% if f.email %}<div class="small text-muted text-truncate"><i class="bi bi-envelope"></i> {{ f.email }}</div>{% endif %}
+          {% if f.telefono %}<div class="small text-muted"><i class="bi bi-telephone"></i> {{ f.telefono }}</div>{% endif %}
+          <div class="small mt-2"><span class="chip chip-azzurro">{{ conteggi.get(f.id, 0) }} ordini</span></div>
+        </div>
+      </div>
+    </div></div>
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<div class="card">
+  {% call vuoto('truck', 'Nessun fornitore', 'Aggiungi i fornitori abituali: li sceglierai negli ordini di spesa.') %}
+    <a class="btn btn-primary" href="{{ url_for('spesa.fornitore') }}"><i class="bi bi-plus-lg"></i> Nuovo fornitore</a>
+  {% endcall %}
+</div>
+{% endif %}
+{% endblock %}

@@ -1,9 +1,13 @@
 from flask import Blueprint, abort, flash, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
+from sqlalchemy import or_
 
-from ..models import (EPS, Ordine, OrdineSpesa, Prodotto, RigaOrdine, RigaSpesa,
-                      StatoOrdine, Unita, db)
-from ..utils import admin_richiesto, docente_richiesto, parse_qta
+from ..magazzino import (GiacenzaInsufficiente, collega_riga, da_comprare, domanda_aperta, in_arrivo,
+                         muovi)
+from ..models import (Ordine, OrdineSpesa, Prodotto, RigaOrdine, RigaSpesa, StatoOrdine,
+                      TipoMovimento, Unita, Utente, db)
+from ..utils import (PER_PAGINA, admin_richiesto, docente_richiesto, fmt_qta, notifica_docente,
+                     pagina, parse_qta)
 
 bp = Blueprint("ordini", __name__, url_prefix="/ordini")
 
@@ -14,7 +18,7 @@ bp = Blueprint("ordini", __name__, url_prefix="/ordini")
 @docente_richiesto
 def miei():
     ordini = (Ordine.query.filter_by(docente_id=current_user.id)
-              .order_by(Ordine.creato_il.desc()).all())
+              .order_by(Ordine.creato_il.desc()).paginate(page=pagina(), per_page=PER_PAGINA))
     return render_template("ordini/miei.html", ordini=ordini)
 
 
@@ -25,6 +29,21 @@ def nuovo():
     unita = Unita.query.order_by(Unita.nome).all()
     righe_input = []
     note = ""
+
+    # "Ripeti ordine": precompila il modulo con le righe di un ordine precedente
+    da = request.args.get("da", "")
+    if request.method == "GET" and da.isdigit():
+        vecchio = db.session.get(Ordine, int(da))
+        if vecchio and vecchio.docente_id == current_user.id:
+            for r in vecchio.righe:
+                if r.prodotto and r.prodotto.attivo:
+                    righe_input.append({"prodotto_id": str(r.prodotto_id), "descrizione": "",
+                                        "unita_id": "", "quantita": fmt_qta(r.quantita_richiesta)})
+                elif not r.prodotto:
+                    righe_input.append({"prodotto_id": "altro", "descrizione": r.descrizione_libera,
+                                        "unita_id": str(r.unita_id),
+                                        "quantita": fmt_qta(r.quantita_richiesta)})
+            note = vecchio.note
 
     if request.method == "POST":
         f = request.form
@@ -113,13 +132,20 @@ def dettaglio(oid):
 @admin_richiesto
 def index():
     filtro = request.args.get("stato", "aperti")
-    query = Ordine.query
+    cerca = request.args.get("q", "").strip()
+    query = Ordine.query.join(Ordine.docente)
     if filtro == "aperti":
         query = query.filter(Ordine.stato.in_(StatoOrdine.APERTI))
     elif filtro in StatoOrdine.ETICHETTE:
-        query = query.filter_by(stato=filtro)
-    ordini = query.order_by(Ordine.creato_il.desc()).all()
-    return render_template("ordini/index.html", ordini=ordini, filtro=filtro)
+        query = query.filter(Ordine.stato == filtro)
+    if cerca:
+        like = f"%{cerca}%"
+        cond = [Utente.nome.ilike(like), Utente.cognome.ilike(like), Utente.email.ilike(like)]
+        if cerca.lstrip("#").isdigit():
+            cond.append(Ordine.id == int(cerca.lstrip("#")))
+        query = query.filter(or_(*cond))
+    ordini = query.order_by(Ordine.creato_il.desc()).paginate(page=pagina(), per_page=PER_PAGINA)
+    return render_template("ordini/index.html", ordini=ordini, filtro=filtro, q=cerca)
 
 
 @bp.route("/<int:oid>/gestisci", methods=["POST"])
@@ -132,6 +158,7 @@ def gestisci(oid):
         flash("L'ordine non è più aperto.", "warning")
         return redirect(url_for("ordini.dettaglio", oid=oid))
 
+    stato_prima = ordine.stato
     azione = request.form.get("azione", "consegna")
     ordine.nota_admin = request.form.get("nota_admin", "").strip()
     ordine.gestito_da_id = current_user.id
@@ -142,21 +169,28 @@ def gestisci(oid):
             return redirect(url_for("ordini.dettaglio", oid=oid))
         ordine.stato = StatoOrdine.RIFIUTATO
         db.session.commit()
+        notifica_docente(ordine)
         flash(f"Ordine #{oid} rifiutato.", "info")
         return redirect(url_for("ordini.index"))
 
-    # 1) collegamento di richieste "Altro" a prodotti esistenti
+    errori = []
+
+    # 1) collegamento di richieste "Altro" a prodotti esistenti, con conversione dell'unità
     for riga in ordine.righe:
         if riga.prodotto is None:
             pid = request.form.get(f"collega_{riga.id}", "")
             if pid.isdigit():
                 p = db.session.get(Prodotto, int(pid))
                 if p:
-                    riga.prodotto = p
-                    riga.unita_id = p.unita_id
+                    manuale = request.form.get(f"qta_collega_{riga.id}", "").strip()
+                    q_man = parse_qta(manuale) if manuale else None
+                    if manuale and q_man is None:
+                        errori.append(f"«{riga.nome}»: quantità convertita non valida.")
+                    elif (err := collega_riga(riga, p, q_man)):
+                        errori.append(err)
 
     # 2) consegne: prima si valida tutto, poi si applica
-    consegne, errori = [], []
+    consegne = []
     for riga in ordine.righe:
         campo = request.form.get(f"consegna_{riga.id}")
         if campo is None or riga.prodotto is None or riga.completa:
@@ -164,12 +198,12 @@ def gestisci(oid):
         q = parse_qta(campo or "0")
         if q is None or q < 0:
             errori.append(f"«{riga.nome}»: quantità non valida.")
-        elif q > riga.mancante + EPS:
+        elif q > riga.mancante:
             errori.append(f"«{riga.nome}»: stai consegnando più di quanto manca.")
-        elif q > riga.prodotto.giacenza + EPS:
+        elif q > riga.prodotto.giacenza:
             errori.append(f"«{riga.nome}»: in magazzino ce ne sono solo "
-                          f"{riga.prodotto.giacenza:g} {riga.prodotto.unita.simbolo}.")
-        elif q > EPS:
+                          f"{fmt_qta(riga.prodotto.giacenza)} {riga.prodotto.unita.simbolo}.")
+        elif q > 0:
             consegne.append((riga, q))
 
     if errori:
@@ -178,15 +212,24 @@ def gestisci(oid):
             flash(e, "danger")
         return redirect(url_for("ordini.dettaglio", oid=oid))
 
-    for riga, q in consegne:
-        riga.quantita_evasa = round(riga.quantita_evasa + q, 3)
-        riga.prodotto.giacenza = round(riga.prodotto.giacenza - q, 3)
+    try:
+        for riga, q in consegne:
+            muovi(riga.prodotto, -q, TipoMovimento.SCARICO, ordine=ordine,
+                  nota=f"Consegna a {ordine.docente.nome_completo}")
+            riga.quantita_evasa = riga.quantita_evasa + q
+    except GiacenzaInsufficiente as e:
+        db.session.rollback()
+        flash(f"«{e}»: la giacenza è cambiata nel frattempo e non basta più. Ricontrolla le quantità.",
+              "danger")
+        return redirect(url_for("ordini.dettaglio", oid=oid))
     ordine.aggiorna_stato()
 
     if azione == "chiudi" and ordine.aperto:
         ordine.stato = StatoOrdine.CHIUSO
     db.session.commit()
 
+    if ordine.stato != stato_prima:
+        notifica_docente(ordine)
     if consegne:
         flash(f"Consegna registrata ({len(consegne)} articoli). Magazzino aggiornato.", "success")
     if ordine.stato == StatoOrdine.EVASO:
@@ -201,30 +244,34 @@ def gestisci(oid):
 @bp.route("/<int:oid>/ordine-spesa", methods=["POST"])
 @admin_richiesto
 def crea_spesa(oid):
-    """Crea una bozza di ordine di spesa con ciò che manca in magazzino per evadere l'ordine."""
+    """Bozza di ordine di spesa con ciò che serve per evadere l'ordine. Tiene conto di tutta
+    la domanda aperta per quei prodotti e di quanto è già in arrivo da altri ordini di spesa."""
     ordine = db.get_or_404(Ordine, oid)
-    da_comprare = {}
-    senza_prodotto = 0
+    prodotti, senza_prodotto = {}, 0
     for riga in ordine.righe:
         if riga.completa:
             continue
         if riga.prodotto is None:
             senza_prodotto += 1
-            continue
-        da_comprare.setdefault(riga.prodotto, 0.0)
-        da_comprare[riga.prodotto] += riga.mancante
+        else:
+            prodotti[riga.prodotto.id] = riga.prodotto
 
-    righe = []
-    for prodotto, serve in da_comprare.items():
-        manca = round(serve - prodotto.giacenza, 3)
-        if manca > EPS:
-            righe.append(RigaSpesa(prodotto=prodotto, quantita=manca))
+    domanda, arrivo = domanda_aperta(list(prodotti)), in_arrivo(list(prodotti))
+    righe, coperti = [], []
+    for pid, prodotto in prodotti.items():
+        q = da_comprare(prodotto, domanda[pid], arrivo[pid])
+        if q > 0:
+            righe.append(RigaSpesa(prodotto=prodotto, quantita=q))
+        elif arrivo[pid] > 0 and prodotto.giacenza < domanda[pid]:
+            coperti.append(prodotto.nome)
 
     if senza_prodotto:
         flash(f"{senza_prodotto} richieste «Altro» non sono ancora collegate a un prodotto: "
               "crea o collega il prodotto per poterle includere.", "warning")
+    if coperti:
+        flash("Già in arrivo con altri ordini di spesa: " + ", ".join(coperti) + ".", "info")
     if not righe:
-        flash("Non manca nulla in magazzino per i prodotti di questo ordine.", "info")
+        flash("Non serve comprare nulla per questo ordine.", "info")
         return redirect(url_for("ordini.dettaglio", oid=oid))
 
     spesa = OrdineSpesa(creato_da_id=current_user.id, ordine_origine=ordine, righe=righe,

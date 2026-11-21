@@ -1,5 +1,5 @@
-{% macro badge(obj) -%}
-  <span class="badge text-bg-{{ obj.stato_colore }}">{{ obj.stato_label }}</span>
+{% macro badge(obj, grande=false) -%}
+  <span class="stato stato-{{ obj.stato_colore }} {{ 'stato-lg' if grande }}">{{ obj.stato_label }}</span>
 {%- endmacro %}
 
 {% macro csrf() -%}
@@ -7,5 +7,82 @@
 {%- endmacro %}
 
 {% macro qta(valore, unita) -%}
-  {{ valore|qta }} <small class="text-muted">{{ unita.simbolo }}</small>
+  <span class="tabular">{{ valore|qta }}</span> <small class="text-muted">{{ unita.simbolo }}</small>
+{%- endmacro %}
+
+{% macro flash_messaggi() -%}
+  {% set icone = {'success': 'check-circle-fill', 'danger': 'exclamation-octagon-fill', 'warning': 'exclamation-triangle-fill', 'info': 'info-circle-fill'} %}
+  {% with messaggi = get_flashed_messages(with_categories=true) %}
+    {% for categoria, msg in messaggi %}
+      {% set c = 'info' if categoria == 'message' else categoria %}
+      <div class="alert alert-{{ c }} alert-dismissible alert-flash fade show d-print-none" role="alert">
+        <i class="bi bi-{{ icone.get(c, 'info-circle-fill') }}"></i>{{ msg }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Chiudi"></button>
+      </div>
+    {% endfor %}
+  {% endwith %}
+{%- endmacro %}
+
+{# Intestazione di pagina: titolo, sottotitolo, briciole e (con call) i bottoni a destra #}
+{% macro intestazione(titolo, sottotitolo=none, indietro=none, indietro_testo='Indietro') -%}
+  <div class="pagina-header">
+    <div>
+      {% if indietro %}<div class="briciole d-print-none"><a href="{{ indietro }}"><i class="bi bi-arrow-left"></i> {{ indietro_testo }}</a></div>{% endif %}
+      <h1>{{ titolo }}</h1>
+      {% if sottotitolo %}<div class="sottotitolo">{{ sottotitolo }}</div>{% endif %}
+    </div>
+    {% if caller %}<div class="azioni d-print-none">{{ caller() }}</div>{% endif %}
+  </div>
+{%- endmacro %}
+
+{% macro vuoto(icona, titolo, testo=none, piccolo=false) -%}
+  <div class="vuoto {{ 'vuoto-sm' if piccolo }}">
+    <div class="icona"><i class="bi bi-{{ icona }}"></i></div>
+    <h3>{{ titolo }}</h3>
+    {% if testo %}<p class="mb-0">{{ testo }}</p>{% endif %}
+    {% if caller %}<div class="mt-3">{{ caller() }}</div>{% endif %}
+  </div>
+{%- endmacro %}
+
+{% macro livello(p) -%}
+  <div class="livello livello-{{ p.livello_colore }}" title="Scorta minima: {{ p.scorta_minima|qta }} {{ p.unita.simbolo }}">
+    <div class="livello-barra"><span style="width: {{ [p.livello, 3]|max if p.giacenza > 0 else 0 }}%"></span></div>
+    <span class="livello-valore {{ 'text-danger fw-semibold' if p.giacenza <= 0 }}">{{ qta(p.giacenza, p.unita) }}</span>
+  </div>
+{%- endmacro %}
+
+{% macro paginazione(pag) -%}
+  {% if pag.pages > 1 %}
+  <nav class="d-flex flex-wrap justify-content-between align-items-center gap-2 mt-3 d-print-none" aria-label="Pagine">
+    <div class="small text-muted">{{ pag.first }}–{{ pag.last }} di {{ pag.total }}</div>
+    <ul class="pagination pagination-sm mb-0">
+      <li class="page-item {{ 'disabled' if not pag.has_prev }}"><a class="page-link" href="{{ url_pagina(pag.prev_num or 1) }}" aria-label="Precedente"><i class="bi bi-chevron-left"></i></a></li>
+      {% for n in pag.iter_pages(left_edge=1, left_current=2, right_current=2, right_edge=1) %}
+        {% if n %}<li class="page-item {{ 'active' if n == pag.page }}"><a class="page-link" href="{{ url_pagina(n) }}">{{ n }}</a></li>
+        {% else %}<li class="page-item disabled"><span class="page-link">…</span></li>{% endif %}
+      {% endfor %}
+      <li class="page-item {{ 'disabled' if not pag.has_next }}"><a class="page-link" href="{{ url_pagina(pag.next_num or pag.pages) }}" aria-label="Successiva"><i class="bi bi-chevron-right"></i></a></li>
+    </ul>
+  </nav>
+  {% endif %}
+{%- endmacro %}
+
+{% macro filtri(voci, attivo, endpoint, param='stato') -%}
+  <div class="filtri">
+    {% for val, label in voci %}
+      <a class="{{ 'active' if attivo == val }}" href="{{ url_for(endpoint, **{param: val}) if val else url_for(endpoint) }}">{{ label }}</a>
+    {% endfor %}
+  </div>
+{%- endmacro %}
+
+{% macro movimento_qta(m) -%}
+  <span class="{{ 'mov-segno-pos' if m.quantita > 0 else 'mov-segno-neg' if m.quantita < 0 }} tabular">{{ '+' if m.quantita > 0 }}{{ m.quantita|qta }}</span>
+  <small class="text-muted">{{ m.prodotto.unita.simbolo }}</small>
+{%- endmacro %}
+
+{% macro movimento_rif(m) -%}
+  {% if m.ordine_id %}<a href="{{ url_for('ordini.dettaglio', oid=m.ordine_id) }}">Ordine #{{ m.ordine_id }}</a>
+  {% elif m.ordine_spesa_id %}<a href="{{ url_for('spesa.dettaglio', sid=m.ordine_spesa_id) }}">Spesa #{{ m.ordine_spesa_id }}</a>
+  {% endif %}
+  {% if m.nota %}<div class="small text-muted">{{ m.nota }}</div>{% endif %}
 {%- endmacro %}

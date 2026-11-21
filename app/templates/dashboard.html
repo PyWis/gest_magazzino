@@ -1,69 +1,195 @@
 {% extends "base.html" %}
-{% from "_macros.html" import badge, qta %}
+{% from "_macros.html" import badge, qta, vuoto, livello, movimento_qta %}
 {% block title %}Dashboard{% endblock %}
 {% block content %}
-<h1 class="h3 mb-4">Dashboard</h1>
+{% set n_attesa = ordini_aperti|selectattr('stato', 'equalto', StatoOrdine.IN_ATTESA)|list|length %}
+
+<div class="benvenuto mb-4">
+  <i class="bi bi-box-seam decoro"></i>
+  <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
+    <div>
+      <h1>Ciao {{ current_user.nome or current_user.nome_completo }} 👋</h1>
+      <p>
+        {% if ordini_aperti %}Ci sono <strong class="text-white">{{ ordini_aperti|length }}</strong> ordini dei docenti da evadere{% if sotto_scorta %} e <strong class="text-white">{{ sotto_scorta|length }}</strong> prodotti sotto scorta{% endif %}.
+        {% elif sotto_scorta %}Nessun ordine in attesa, ma {{ sotto_scorta|length }} prodotti sono sotto scorta.
+        {% else %}Tutto in ordine: nessun ordine in attesa e scorte a posto.{% endif %}
+      </p>
+    </div>
+    <div class="d-flex gap-2">
+      {% if ordini_aperti %}<a class="btn btn-light" href="{{ url_for('ordini.dettaglio', oid=ordini_aperti[0].id) }}"><i class="bi bi-lightning-charge"></i> Evadi il più vecchio</a>{% endif %}
+    </div>
+  </div>
+</div>
 
 <div class="row g-3 mb-4">
-  <div class="col-md-4"><a class="text-decoration-none" href="{{ url_for('ordini.index') }}">
-    <div class="card"><div class="card-body">
-      <div class="text-muted">Ordini da evadere</div>
-      <div class="stat text-warning">{{ ordini_aperti|length }}</div>
-    </div></div></a></div>
-  <div class="col-md-4"><a class="text-decoration-none" href="{{ url_for('prodotti.index', filtro='sotto_scorta') }}">
-    <div class="card"><div class="card-body">
-      <div class="text-muted">Prodotti sotto scorta</div>
-      <div class="stat text-danger">{{ sotto_scorta|length }}</div>
-    </div></div></a></div>
-  <div class="col-md-4"><a class="text-decoration-none" href="{{ url_for('spesa.index') }}">
-    <div class="card"><div class="card-body">
-      <div class="text-muted">Ordini di spesa in corso</div>
-      <div class="stat text-primary">{{ spese_in_corso|length }}</div>
-    </div></div></a></div>
+  <div class="col-6 col-xl-3">
+    <a class="card stat" href="{{ url_for('ordini.index') }}">
+      <span class="stat-icona tono-giallo"><i class="bi bi-inbox"></i></span>
+      <div>
+        <div class="stat-etichetta">Ordini da evadere</div>
+        <div class="stat-numero">{{ ordini_aperti|length }}</div>
+        <div class="stat-nota">{% if ordini_aperti %}il più vecchio: {{ ordini_aperti[0].creato_il|tempo_fa }}{% else %}nessuno in coda{% endif %}</div>
+      </div>
+    </a>
+  </div>
+  <div class="col-6 col-xl-3">
+    <a class="card stat" href="{{ url_for('prodotti.index', filtro='sotto_scorta') }}">
+      <span class="stat-icona tono-rosso"><i class="bi bi-exclamation-triangle"></i></span>
+      <div>
+        <div class="stat-etichetta">Sotto scorta</div>
+        <div class="stat-numero">{{ sotto_scorta|length }}</div>
+        <div class="stat-nota">{{ esauriti }} esauriti</div>
+      </div>
+    </a>
+  </div>
+  <div class="col-6 col-xl-3">
+    <a class="card stat" href="{{ url_for('spesa.index', stato='aperti') }}">
+      <span class="stat-icona tono-azzurro"><i class="bi bi-truck"></i></span>
+      <div>
+        <div class="stat-etichetta">Acquisti in corso</div>
+        <div class="stat-numero">{{ spese_in_corso|length }}</div>
+        <div class="stat-nota">{{ spese_in_corso|selectattr('stato', 'equalto', StatoSpesa.BOZZA)|list|length }} bozze da inviare</div>
+      </div>
+    </a>
+  </div>
+  <div class="col-6 col-xl-3">
+    <a class="card stat" href="{{ url_for('prodotti.index') }}">
+      <span class="stat-icona tono-blu"><i class="bi bi-boxes"></i></span>
+      <div>
+        <div class="stat-etichetta">Prodotti a catalogo</div>
+        <div class="stat-numero">{{ n_prodotti }}</div>
+        <div class="stat-nota">attivi e ordinabili</div>
+      </div>
+    </a>
+  </div>
 </div>
 
 <div class="row g-3">
-  <div class="col-lg-7">
-    <div class="card"><div class="card-body">
-      <h2 class="h5">Ordini da evadere</h2>
+  <div class="col-xl-7">
+    <div class="card h-100">
+      <div class="card-header">
+        <h2><i class="bi bi-inbox icona-titolo"></i>Ordini da evadere</h2>
+        <a class="small" href="{{ url_for('ordini.index') }}">Vedi tutti <i class="bi bi-arrow-right"></i></a>
+      </div>
       {% if ordini_aperti %}
-      <table class="table table-sm table-hover mb-0">
-        <thead><tr><th>#</th><th>Docente</th><th>Data</th><th>Articoli</th><th>Stato</th></tr></thead>
+      <div class="table-responsive">
+      <table class="table table-hover">
+        <thead><tr><th>Ordine</th><th>Docente</th><th>Avanzamento</th><th>Stato</th></tr></thead>
         <tbody>
-        {% for o in ordini_aperti %}
-          <tr onclick="location.href='{{ url_for('ordini.dettaglio', oid=o.id) }}'" style="cursor:pointer">
-            <td>{{ o.id }}</td><td>{{ o.docente.nome_completo }}</td>
-            <td>{{ o.creato_il|data }}</td><td>{{ o.righe|length }}</td><td>{{ badge(o) }}</td>
+        {% for o in ordini_aperti[:8] %}
+          <tr class="riga-link">
+            <td><a class="stretched-link" href="{{ url_for('ordini.dettaglio', oid=o.id) }}">#{{ o.id }}</a></td>
+            <td>
+              <div class="d-flex align-items-center gap-2">
+                <span class="avatar avatar-sm tenue">{{ o.docente.iniziali }}</span>
+                <div><div class="text-nowrap">{{ o.docente.nome_completo }}</div>
+                  <div class="small text-muted" title="{{ o.creato_il|data }}">{{ o.creato_il|tempo_fa }}</div></div>
+              </div>
+            </td>
+            <td style="min-width: 110px">
+              <div class="progress" style="height: 6px" role="progressbar" aria-valuenow="{{ o.percentuale }}" aria-valuemin="0" aria-valuemax="100">
+                <div class="progress-bar" style="width: {{ o.percentuale }}%"></div>
+              </div>
+              <div class="small text-muted mt-1">{{ o.righe_complete }}/{{ o.righe|length }} righe</div>
+            </td>
+            <td>{{ badge(o) }}</td>
           </tr>
         {% endfor %}
         </tbody>
       </table>
-      {% else %}<p class="text-muted mb-0">Nessun ordine in attesa. 🎉</p>{% endif %}
-    </div></div>
+      </div>
+      {% else %}
+        {{ vuoto('check2-circle', 'Nessun ordine in attesa', 'Quando un docente invia un ordine lo trovi qui.') }}
+      {% endif %}
+    </div>
   </div>
-  <div class="col-lg-5">
-    <div class="card"><div class="card-body">
-      <div class="d-flex justify-content-between align-items-center">
-        <h2 class="h5 mb-0">Sotto scorta</h2>
+
+  <div class="col-xl-5">
+    <div class="card h-100">
+      <div class="card-header">
+        <h2><i class="bi bi-exclamation-triangle icona-titolo"></i>Scorte basse</h2>
         {% if sotto_scorta %}
         <form method="post" action="{{ url_for('spesa.da_sotto_scorta') }}">
           <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
-          <button class="btn btn-sm btn-outline-primary">Crea ordine di spesa</button>
+          <button class="btn btn-sm btn-outline-primary"><i class="bi bi-cart-plus"></i> Riordina</button>
         </form>
         {% endif %}
       </div>
       {% if sotto_scorta %}
-      <table class="table table-sm mt-2 mb-0">
-        <thead><tr><th>Prodotto</th><th class="text-end">Giacenza</th><th class="text-end">Minimo</th></tr></thead>
+      <div class="table-responsive">
+      <table class="table table-sm">
+        <thead><tr><th>Prodotto</th><th>Giacenza</th><th class="text-end">In arrivo</th></tr></thead>
         <tbody>
-        {% for p in sotto_scorta %}
-          <tr><td>{{ p.nome }}</td><td class="text-end">{{ qta(p.giacenza, p.unita) }}</td>
-              <td class="text-end">{{ qta(p.scorta_minima, p.unita) }}</td></tr>
+        {% for p in sotto_scorta[:8] %}
+          <tr class="riga-link">
+            <td><a class="stretched-link" href="{{ url_for('prodotti.scheda', pid=p.id) }}">{{ p.nome }}</a>
+              <div class="small text-muted">min. {{ p.scorta_minima|qta }} {{ p.unita.simbolo }}</div></td>
+            <td>{{ livello(p) }}</td>
+            <td class="text-end">{% if arrivo[p.id] %}<span class="chip chip-azzurro"><i class="bi bi-truck"></i>{{ arrivo[p.id]|qta }}</span>{% else %}<span class="text-muted">—</span>{% endif %}</td>
+          </tr>
         {% endfor %}
         </tbody>
       </table>
-      {% else %}<p class="text-muted mt-2 mb-0">Tutto a posto.</p>{% endif %}
-    </div></div>
+      </div>
+      {% if sotto_scorta|length > 8 %}<div class="card-body py-2 small"><a href="{{ url_for('prodotti.index', filtro='sotto_scorta') }}">Altri {{ sotto_scorta|length - 8 }} prodotti…</a></div>{% endif %}
+      {% else %}
+        {{ vuoto('emoji-smile', 'Scorte a posto', 'Nessun prodotto è sotto la scorta minima.') }}
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="col-xl-7">
+    <div class="card h-100">
+      <div class="card-header">
+        <h2><i class="bi bi-arrow-left-right icona-titolo"></i>Ultimi movimenti</h2>
+        <a class="small" href="{{ url_for('prodotti.movimenti') }}">Registro completo <i class="bi bi-arrow-right"></i></a>
+      </div>
+      {% if ultimi_movimenti %}
+      <div class="table-responsive">
+      <table class="table table-sm">
+        <tbody>
+        {% for m in ultimi_movimenti %}
+          <tr>
+            <td style="width: 1%"><span class="stat-icona tono-{{ {'success':'verde','primary':'blu','warning':'giallo'}.get(m.tipo_colore, 'azzurro') }}" style="width:30px;height:30px;font-size:.9rem;border-radius:8px"><i class="bi bi-{{ m.tipo_icona }}"></i></span></td>
+            <td><a href="{{ url_for('prodotti.scheda', pid=m.prodotto_id) }}" class="text-reset fw-semibold text-decoration-none">{{ m.prodotto.nome }}</a>
+              <div class="small text-muted">{{ m.tipo_label }}{% if m.utente %} · {{ m.utente.nome_completo }}{% endif %}</div></td>
+            <td class="text-end text-nowrap">{{ movimento_qta(m) }}</td>
+            <td class="text-end small text-muted text-nowrap d-none d-sm-table-cell">{{ m.creato_il|data }}</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+      </div>
+      {% else %}
+        {{ vuoto('arrow-left-right', 'Ancora nessun movimento', piccolo=true) }}
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="col-xl-5">
+    <div class="card h-100">
+      <div class="card-header">
+        <h2><i class="bi bi-truck icona-titolo"></i>Acquisti in corso</h2>
+        <a class="small" href="{{ url_for('spesa.nuovo') }}"><i class="bi bi-plus-lg"></i> Nuovo</a>
+      </div>
+      {% if spese_in_corso %}
+      <div class="table-responsive">
+      <table class="table table-sm table-hover">
+        <tbody>
+        {% for s in spese_in_corso[:6] %}
+          <tr class="riga-link">
+            <td><a class="stretched-link" href="{{ url_for('spesa.dettaglio', sid=s.id) }}">#{{ s.id }}</a></td>
+            <td>{{ s.fornitore_nome or 'Fornitore da scegliere' }}<div class="small text-muted">{{ s.righe|length }} prodotti</div></td>
+            <td class="text-end">{{ badge(s) }}</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+      </div>
+      {% else %}
+        {{ vuoto('cart-check', 'Nessun acquisto in corso', piccolo=true) }}
+      {% endif %}
+    </div>
   </div>
 </div>
 {% endblock %}

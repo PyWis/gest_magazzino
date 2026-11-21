@@ -1,8 +1,9 @@
 {% extends "base.html" %}
 {% block title %}{{ 'Nuovo utente' if nuovo else 'Modifica utente' }}{% endblock %}
+{% from "_macros.html" import intestazione %}
 {% block content %}
-<div class="row justify-content-center"><div class="col-lg-7">
-<h1 class="h3 mb-3">{{ 'Nuovo utente' if nuovo else 'Modifica ' ~ utente.nome_completo }}</h1>
+<div class="row justify-content-center"><div class="col-lg-8 col-xl-7">
+{{ intestazione(('Nuovo ' ~ Ruolo.ETICHETTE.get(utente.ruolo, 'utente')|lower) if nuovo else utente.nome_completo, none if nuovo else utente.email, url_for('utenti.index'), 'Utenti') }}
 <div class="card"><div class="card-body">
 <form method="post">
   <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
@@ -28,7 +29,7 @@
         {% endfor %}
       </select>
     </div>
-    <div class="col-12"><hr class="my-1">
+    <div class="col-12"><hr class="my-1" style="border-color: var(--linea)">
       <div class="form-text mb-2">
         {% if nuovo %}Password temporanea: l'utente dovrà cambiarla al primo accesso.
         {% else %}Lascia vuoto per non cambiarla. Se la imposti, l'utente dovrà cambiarla al prossimo accesso.{% endif %}
@@ -52,7 +53,7 @@
     {% endif %}
   </div>
   <div class="mt-4 d-flex gap-2">
-    <button class="btn btn-primary">Salva</button>
+    <button class="btn btn-primary"><i class="bi bi-check-lg"></i> Salva</button>
     <a class="btn btn-outline-secondary" href="{{ url_for('utenti.index') }}">Annulla</a>
   </div>
 </form>

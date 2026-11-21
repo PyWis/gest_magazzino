@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% from "_macros.html" import intestazione %}
+{% block title %}{{ 'Nuovo fornitore' if nuovo else f.nome }}{% endblock %}
+{% block content %}
+<div class="row justify-content-center"><div class="col-lg-8 col-xl-7">
+{{ intestazione('Nuovo fornitore' if nuovo else f.nome, none, url_for('spesa.fornitori'), 'Fornitori') }}
+<div class="card"><div class="card-body">
+<form method="post">
+  <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+  {% set r = request.form %}
+  <div class="row g-3">
+    <div class="col-12"><label class="form-label" for="nome">Nome / ragione sociale</label>
+      <input class="form-control" id="nome" name="nome" required value="{{ r.get('nome', f.nome) }}"></div>
+    <div class="col-md-7"><label class="form-label" for="email">Email ordini</label>
+      <input class="form-control" type="email" id="email" name="email" value="{{ r.get('email', f.email) }}"></div>
+    <div class="col-md-5"><label class="form-label" for="telefono">Telefono</label>
+      <input class="form-control" id="telefono" name="telefono" value="{{ r.get('telefono', f.telefono) }}"></div>
+    <div class="col-12"><label class="form-label" for="note">Note</label>
+      <textarea class="form-control" id="note" name="note" rows="2" placeholder="es. referente, giorni di consegna, codice cliente">{{ r.get('note', f.note) }}</textarea></div>
+    {% if not nuovo %}
+    <div class="col-12"><div class="form-check form-switch">
+      <input class="form-check-input" type="checkbox" name="attivo" value="1" id="attivo" {{ 'checked' if f.attivo }}>
+      <label class="form-check-label" for="attivo">Attivo (proposto nei nuovi ordini di spesa)</label></div></div>
+    {% endif %}
+  </div>
+  <div class="mt-4 d-flex gap-2">
+    <button class="btn btn-primary"><i class="bi bi-check-lg"></i> Salva</button>
+    <a class="btn btn-outline-secondary" href="{{ url_for('spesa.fornitori') }}">Annulla</a>
+  </div>
+</form>
+</div></div>
+{% if not nuovo and f.ordini_spesa %}
+<div class="mt-3 small"><a href="{{ url_for('spesa.index', fornitore=f.id) }}"><i class="bi bi-list-ul"></i> Vedi i {{ f.ordini_spesa|length }} ordini di spesa di questo fornitore</a></div>
+{% endif %}
+</div></div>
+{% endblock %}
